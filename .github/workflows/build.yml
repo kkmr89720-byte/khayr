@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-android:
-    name: Build Android APK
+    name: Build Signed Android APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -37,14 +37,20 @@ jobs:
           flutter pub get
           dart run flutter_launcher_icons
 
-      - name: Build Android Release APK
-        run: flutter build apk --release
+      - name: Build & Sign Android Release APK
+        run: |
+          flutter build apk --release
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME/build-tools/"* | sort -V | tail -n 1)
+          keytool -genkey -v -keystore khayr.jks -keyalg RSA -keysize 2048 -validity 10000 -alias khayr -storepass khayr123456 -keypass khayr123456 -dname "CN=KhayrUmmah, OU=App, O=KhayrUmmah, L=Damascus, ST=Damascus, C=SY"
+          "$BUILD_TOOLS/zipalign" -f 4 build/app/outputs/flutter-apk/app-release.apk app-aligned.apk
+          "$BUILD_TOOLS/apksigner" sign --ks khayr.jks --ks-key-alias khayr --ks-pass pass:khayr123456 --key-pass pass:khayr123456 --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --out khayr-ummah-signed.apk app-aligned.apk
+          "$BUILD_TOOLS/apksigner" verify khayr-ummah-signed.apk
 
-      - name: Upload Android APK
+      - name: Upload Signed Android APK
         uses: actions/upload-artifact@v4
         with:
           name: khayr-ummah-android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: khayr-ummah-signed.apk
 
   build-ios:
     name: Build iOS App (Unsigned IPA)
