@@ -25,9 +25,9 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Generate native Android project files
+      - name: Generate native project files
         run: |
-          flutter create . --org com.khayrummah --project-name khayr_ummah_app --platforms=android
+          flutter create . --org com.khayrummah --project-name khayr_ummah_app --platforms=android,ios
           sed -i 's/android:label="[^"]*"/android:label="خير أمة"/' android/app/src/main/AndroidManifest.xml
           grep -q "android.permission.INTERNET" android/app/src/main/AndroidManifest.xml || \
             sed -i 's/<application/<uses-permission android:name="android.permission.INTERNET"\/>\n    <application/' android/app/src/main/AndroidManifest.xml
@@ -59,9 +59,9 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Generate native iOS project files
+      - name: Generate native project files
         run: |
-          flutter create . --org com.khayrummah --project-name khayr_ummah_app --platforms=ios
+          flutter create . --org com.khayrummah --project-name khayr_ummah_app --platforms=android,ios
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName خير أمة" ios/Runner/Info.plist || true
 
       - name: Install dependencies & generate app icons
