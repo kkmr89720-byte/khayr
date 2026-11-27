@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -9,7 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 // ---------------------------------------------------------------------------
-// Brand Palettes & Constants (Khayr Ummah Association v1.2)
+// Brand Palettes & Constants (Khayr Ummah Association — Official Identity)
 // ---------------------------------------------------------------------------
 const Color kBlueDeep = Color(0xFF1B4460);
 const Color kBlueDark = Color(0xFF255575);
@@ -46,6 +47,9 @@ const String kRecentKey = 'khayr_ummah_native_recent_v1';
 const String kDarkKey = 'khayr_ummah_dark_mode_v1';
 const String kLockoutKey = 'khayr_ummah_admin_lockout_v12';
 const String kDhikrIdxKey = 'khayr_ummah_dhikr_idx_v12';
+
+const int kDefaultDaysCount = 12;
+const int kMaxDaysCount = 30;
 
 // Director password stored ONLY as SHA-256 hash (never plaintext)
 const String kDirectorPassSha256 =
@@ -90,6 +94,131 @@ const List<Map<String, String>> kContactTypes = [
   {'id': 'custom', 'label': 'نص / عنوان', 'icon': '📍'},
 ];
 
+// Complete 114 Surahs of the Holy Quran (Total Ayahs = 6236)
+class SurahInfo {
+  final int number;
+  final String name;
+  final int ayahs;
+  const SurahInfo(this.number, this.name, this.ayahs);
+}
+
+const List<SurahInfo> kSurahs = [
+  SurahInfo(1, 'الفاتحة', 7),
+  SurahInfo(2, 'البقرة', 286),
+  SurahInfo(3, 'آل عمران', 200),
+  SurahInfo(4, 'النساء', 176),
+  SurahInfo(5, 'المائدة', 120),
+  SurahInfo(6, 'الأنعام', 165),
+  SurahInfo(7, 'الأعراف', 206),
+  SurahInfo(8, 'الأنفال', 75),
+  SurahInfo(9, 'التوبة', 129),
+  SurahInfo(10, 'يونس', 109),
+  SurahInfo(11, 'هود', 123),
+  SurahInfo(12, 'يوسف', 111),
+  SurahInfo(13, 'الرعد', 43),
+  SurahInfo(14, 'إبراهيم', 52),
+  SurahInfo(15, 'الحجر', 99),
+  SurahInfo(16, 'النحل', 128),
+  SurahInfo(17, 'الإسراء', 111),
+  SurahInfo(18, 'الكهف', 110),
+  SurahInfo(19, 'مريم', 98),
+  SurahInfo(20, 'طه', 135),
+  SurahInfo(21, 'الأنبياء', 112),
+  SurahInfo(22, 'الحج', 78),
+  SurahInfo(23, 'المؤمنون', 118),
+  SurahInfo(24, 'النور', 64),
+  SurahInfo(25, 'الفرقان', 77),
+  SurahInfo(26, 'الشعراء', 227),
+  SurahInfo(27, 'النمل', 93),
+  SurahInfo(28, 'القصص', 88),
+  SurahInfo(29, 'العنكبوت', 69),
+  SurahInfo(30, 'الروم', 60),
+  SurahInfo(31, 'لقمان', 34),
+  SurahInfo(32, 'السجدة', 30),
+  SurahInfo(33, 'الأحزاب', 73),
+  SurahInfo(34, 'سبأ', 54),
+  SurahInfo(35, 'فاطر', 45),
+  SurahInfo(36, 'يس', 83),
+  SurahInfo(37, 'الصافات', 182),
+  SurahInfo(38, 'ص', 88),
+  SurahInfo(39, 'الزمر', 75),
+  SurahInfo(40, 'غافر', 85),
+  SurahInfo(41, 'فصلت', 54),
+  SurahInfo(42, 'الشورى', 53),
+  SurahInfo(43, 'الزخرف', 89),
+  SurahInfo(44, 'الدخان', 59),
+  SurahInfo(45, 'الجاثية', 37),
+  SurahInfo(46, 'الأحقاف', 35),
+  SurahInfo(47, 'محمد', 38),
+  SurahInfo(48, 'الفتح', 29),
+  SurahInfo(49, 'الحجرات', 18),
+  SurahInfo(50, 'ق', 45),
+  SurahInfo(51, 'الذاريات', 60),
+  SurahInfo(52, 'الطور', 49),
+  SurahInfo(53, 'النجم', 62),
+  SurahInfo(54, 'القمر', 55),
+  SurahInfo(55, 'الرحمن', 78),
+  SurahInfo(56, 'الواقعة', 96),
+  SurahInfo(57, 'الحديد', 29),
+  SurahInfo(58, 'المجادلة', 22),
+  SurahInfo(59, 'الحشر', 24),
+  SurahInfo(60, 'الممتحنة', 13),
+  SurahInfo(61, 'الصف', 14),
+  SurahInfo(62, 'الجمعة', 11),
+  SurahInfo(63, 'المنافقون', 11),
+  SurahInfo(64, 'التغابن', 18),
+  SurahInfo(65, 'الطلاق', 12),
+  SurahInfo(66, 'التحريم', 12),
+  SurahInfo(67, 'الملك', 30),
+  SurahInfo(68, 'القلم', 52),
+  SurahInfo(69, 'الحاقة', 52),
+  SurahInfo(70, 'المعارج', 44),
+  SurahInfo(71, 'نوح', 28),
+  SurahInfo(72, 'الجن', 28),
+  SurahInfo(73, 'المزمل', 20),
+  SurahInfo(74, 'المدثر', 56),
+  SurahInfo(75, 'القيامة', 40),
+  SurahInfo(76, 'الإنسان', 31),
+  SurahInfo(77, 'المرسلات', 50),
+  SurahInfo(78, 'النبأ', 40),
+  SurahInfo(79, 'النازعات', 46),
+  SurahInfo(80, 'عبس', 42),
+  SurahInfo(81, 'التكوير', 29),
+  SurahInfo(82, 'الانفطار', 19),
+  SurahInfo(83, 'المطففين', 36),
+  SurahInfo(84, 'الانشقاق', 25),
+  SurahInfo(85, 'البروج', 22),
+  SurahInfo(86, 'الطارق', 17),
+  SurahInfo(87, 'الأعلى', 19),
+  SurahInfo(88, 'الغاشية', 26),
+  SurahInfo(89, 'الفجر', 30),
+  SurahInfo(90, 'البلد', 20),
+  SurahInfo(91, 'الشمس', 15),
+  SurahInfo(92, 'الليل', 21),
+  SurahInfo(93, 'الضحى', 11),
+  SurahInfo(94, 'الشرح', 8),
+  SurahInfo(95, 'التين', 8),
+  SurahInfo(96, 'العلق', 19),
+  SurahInfo(97, 'القدر', 5),
+  SurahInfo(98, 'البينة', 8),
+  SurahInfo(99, 'الزلزلة', 8),
+  SurahInfo(100, 'العاديات', 11),
+  SurahInfo(101, 'القارعة', 11),
+  SurahInfo(102, 'التكاثر', 8),
+  SurahInfo(103, 'العصر', 3),
+  SurahInfo(104, 'الهمزة', 9),
+  SurahInfo(105, 'الفيل', 5),
+  SurahInfo(106, 'قريش', 4),
+  SurahInfo(107, 'الماعون', 7),
+  SurahInfo(108, 'الكوثر', 3),
+  SurahInfo(109, 'الكافرون', 6),
+  SurahInfo(110, 'النصر', 3),
+  SurahInfo(111, 'المسد', 5),
+  SurahInfo(112, 'الإخلاص', 4),
+  SurahInfo(113, 'الفلق', 5),
+  SurahInfo(114, 'الناس', 6),
+];
+
 String normalizeArabic(String input) {
   return input
       .trim()
@@ -132,7 +261,8 @@ String sha256Hex(String input) {
   bd.setUint32(padLen - 8, bitLen ~/ 0x100000000, Endian.big);
   bd.setUint32(padLen - 4, bitLen & 0xFFFFFFFF, Endian.big);
 
-  int rotr(int x, int n) => ((x >> n) | ((x << (32 - n)) & 0xFFFFFFFF)) & 0xFFFFFFFF;
+  int rotr(int x, int n) =>
+      ((x >> n) | ((x << (32 - n)) & 0xFFFFFFFF)) & 0xFFFFFFFF;
   final w = List<int>.filled(64, 0);
 
   for (int i = 0; i < padLen; i += 64) {
@@ -144,7 +274,8 @@ String sha256Hex(String input) {
       final s1 = rotr(w[t - 2], 17) ^ rotr(w[t - 2], 19) ^ (w[t - 2] >> 10);
       w[t] = (w[t - 16] + s0 + w[t - 7] + s1) & 0xFFFFFFFF;
     }
-    int a = h[0], b = h[1], c = h[2], d = h[3], e = h[4], f = h[5], g = h[6], hh = h[7];
+    int a = h[0], b = h[1], c = h[2], d = h[3];
+    int e = h[4], f = h[5], g = h[6], hh = h[7];
     for (int t = 0; t < 64; t++) {
       final s1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
       final ch = (e & f) ^ ((~e & 0xFFFFFFFF) & g);
@@ -186,8 +317,134 @@ String monthKey(int year, int month) =>
 
 String todayIso() => DateTime.now().toIso8601String().substring(0, 10);
 
-String genId(String prefix) =>
-    '${prefix}_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+int _idSeq = 0;
+String genId(String prefix) {
+  _idSeq++;
+  return '${prefix}_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}_$_idSeq';
+}
+
+// ---------------------------------------------------------------------------
+// Offline Astronomical Prayer Times (Damascus, Syria: 33.5138 N, 36.2765 E, UTC+3)
+// ---------------------------------------------------------------------------
+class PrayerTimesInfo {
+  final List<({String name, int minutes})> prayers;
+  final int nextIndex;
+  final int minutesRemaining;
+  final double progress;
+  final String currentClock;
+
+  PrayerTimesInfo({
+    required this.prayers,
+    required this.nextIndex,
+    required this.minutesRemaining,
+    required this.progress,
+    required this.currentClock,
+  });
+
+  static double _deg2rad(double d) => d * math.pi / 180.0;
+  static double _rad2deg(double r) => r * 180.0 / math.pi;
+
+  static int _clampMin(double hours) {
+    var h = hours % 24.0;
+    if (h < 0) h += 24.0;
+    return (h * 60.0).round() % 1440;
+  }
+
+  static String fmtMin(int totalMin) {
+    final h24 = (totalMin ~/ 60) % 24;
+    final m = totalMin % 60;
+    final h12 = h24 == 0 ? 12 : (h24 > 12 ? h24 - 12 : h24);
+    return '${h12.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  }
+
+  static String fmtCountdown(int mins) {
+    if (mins < 60) return '$mins د';
+    final h = mins ~/ 60;
+    final m = mins % 60;
+    return m == 0 ? '$h س' : '$h س $m د';
+  }
+
+  factory PrayerTimesInfo.forDamascus(DateTime now) {
+    const lat = 33.5138;
+    const lng = 36.2765;
+    const tz = 3.0; // Syria Standard Time (UTC+3)
+
+    final startOfYear = DateTime(now.year, 1, 1);
+    final dayOfYear = now.difference(startOfYear).inDays + 1;
+    final gamma = 2.0 * math.pi / 365.0 * (dayOfYear - 1);
+
+    final eqTime = 229.18 *
+        (0.000075 +
+            0.001868 * math.cos(gamma) -
+            0.032077 * math.sin(gamma) -
+            0.014615 * math.cos(2 * gamma) -
+            0.040849 * math.sin(2 * gamma));
+
+    final decl = 0.006918 -
+        0.399912 * math.cos(gamma) +
+        0.070257 * math.sin(gamma) -
+        0.006758 * math.cos(2 * gamma) +
+        0.000907 * math.sin(2 * gamma) -
+        0.002697 * math.cos(3 * gamma) +
+        0.00148 * math.sin(3 * gamma);
+
+    final dhuhrH = 12.0 + tz - (lng / 15.0) - (eqTime / 60.0);
+
+    double hourAngle(double angleDeg) {
+      final cosH = (-math.sin(_deg2rad(angleDeg)) -
+              math.sin(_deg2rad(lat)) * math.sin(decl)) /
+          (math.cos(_deg2rad(lat)) * math.cos(decl));
+      return _rad2deg(math.acos(cosH.clamp(-1.0, 1.0))) / 15.0;
+    }
+
+    final fajrH = dhuhrH - hourAngle(18.5);
+    final maghribH = dhuhrH + hourAngle(0.833);
+    final ishaH = dhuhrH + hourAngle(17.5);
+
+    // Asr (Shafi'i / Standard shadow factor = 1)
+    final asrAngle = -_rad2deg(
+        math.atan(1.0 / (1.0 + math.tan((_deg2rad(lat) - decl).abs()))));
+    final asrH = dhuhrH + hourAngle(asrAngle);
+
+    final list = <({String name, int minutes})>[
+      (name: 'الفجر', minutes: _clampMin(fajrH)),
+      (name: 'الظهر', minutes: _clampMin(dhuhrH + 0.03)),
+      (name: 'العصر', minutes: _clampMin(asrH)),
+      (name: 'المغرب', minutes: _clampMin(maghribH + 0.03)),
+      (name: 'العشاء', minutes: _clampMin(ishaH)),
+    ];
+
+    final curMin = now.hour * 60 + now.minute;
+    int nextIdx = 0;
+    for (int i = 0; i < list.length; i++) {
+      if (list[i].minutes > curMin) {
+        nextIdx = i;
+        break;
+      }
+      if (i == list.length - 1) nextIdx = 0;
+    }
+
+    final prevIdx = (nextIdx - 1 + list.length) % list.length;
+    final nextM = list[nextIdx].minutes;
+    final prevM = list[prevIdx].minutes;
+    int rem = nextM - curMin;
+    if (rem <= 0) rem += 1440;
+    int span = nextM - prevM;
+    if (span <= 0) span += 1440;
+    final elapsed = (span - rem).clamp(0, span);
+    final prog = span > 0 ? (elapsed / span).clamp(0.05, 1.0) : 0.5;
+
+    final clock =
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    return PrayerTimesInfo(
+      prayers: list,
+      nextIndex: nextIdx,
+      minutesRemaining: rem,
+      progress: prog,
+      currentClock: clock,
+    );
+  }
+}
 
 class CirclePalette {
   final bool isFemale;
@@ -249,19 +506,41 @@ class CirclePalette {
 }
 
 // ---------------------------------------------------------------------------
-// Data Models (100% Compatible with Web v1.2 & Supabase app_state)
+// Data Models (100% Compatible with Supabase app_state)
 // ---------------------------------------------------------------------------
 class TasmiEntry {
   String text;
+  String type; // 'new' (حفظ جديد) | 'review' (مراجعة)
   String grade;
   String note;
 
-  TasmiEntry({required this.text, required this.grade, this.note = ''});
+  TasmiEntry({
+    required this.text,
+    this.type = 'new',
+    required this.grade,
+    this.note = '',
+  });
 
-  Map<String, dynamic> toJson() => {'text': text, 'grade': grade, 'note': note};
+  bool get isReview => type == 'review';
+  String get typeLabel => isReview ? 'مراجعة' : 'حفظ جديد';
+
+  TasmiEntry copy() => TasmiEntry(
+        text: text,
+        type: type,
+        grade: grade,
+        note: note,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'text': text,
+        'type': type,
+        'grade': grade,
+        'note': note,
+      };
 
   factory TasmiEntry.fromJson(Map<String, dynamic> j) => TasmiEntry(
         text: (j['text'] ?? '').toString(),
+        type: (j['type'] ?? 'new').toString() == 'review' ? 'review' : 'new',
         grade: (j['grade'] ?? 'ممتاز').toString(),
         note: (j['note'] ?? '').toString(),
       );
@@ -273,7 +552,7 @@ class MonthRecord {
   int month;
   String label;
   bool archived;
-  int daysCount; // default 15, expandable up to 30
+  int daysCount; // default 12, expandable up to 30
   Map<String, TasmiEntry?> tasmi;
   Map<String, String> attendance;
 
@@ -283,15 +562,20 @@ class MonthRecord {
     required this.month,
     required this.label,
     required this.archived,
-    this.daysCount = 15,
+    this.daysCount = kDefaultDaysCount,
     required this.tasmi,
     required this.attendance,
   });
 
-  factory MonthRecord.empty(int year, int month, {bool archived = false, int daysCount = 15}) {
+  factory MonthRecord.empty(
+    int year,
+    int month, {
+    bool archived = false,
+    int daysCount = kDefaultDaysCount,
+  }) {
     final t = <String, TasmiEntry?>{};
     final a = <String, String>{};
-    for (int d = 1; d <= 30; d++) {
+    for (int d = 1; d <= kMaxDaysCount; d++) {
       t['$d'] = null;
       a['$d'] = 'none';
     }
@@ -301,7 +585,7 @@ class MonthRecord {
       month: month,
       label: monthLabel(month, year),
       archived: archived,
-      daysCount: daysCount.clamp(15, 30),
+      daysCount: daysCount.clamp(kDefaultDaysCount, kMaxDaysCount),
       tasmi: t,
       attendance: a,
     );
@@ -323,11 +607,14 @@ class MonthRecord {
     final aRaw = (j['attendance'] as Map<String, dynamic>?) ?? {};
     final t = <String, TasmiEntry?>{};
     final a = <String, String>{};
-    int maxUsed = (j['daysCount'] is int) ? (j['daysCount'] as int).clamp(15, 30) : 15;
-    for (int d = 1; d <= 30; d++) {
+    int maxUsed = (j['daysCount'] is int)
+        ? (j['daysCount'] as int).clamp(kDefaultDaysCount, kMaxDaysCount)
+        : kDefaultDaysCount;
+    for (int d = 1; d <= kMaxDaysCount; d++) {
       final dk = '$d';
       final tv = tRaw[dk];
-      if (tv is Map<String, dynamic> && (tv['text'] ?? '').toString().trim().isNotEmpty) {
+      if (tv is Map<String, dynamic> &&
+          (tv['text'] ?? '').toString().trim().isNotEmpty) {
         t[dk] = TasmiEntry.fromJson(tv);
         if (d > maxUsed) maxUsed = d;
       } else {
@@ -349,7 +636,7 @@ class MonthRecord {
       month: m,
       label: (j['label'] ?? monthLabel(m, y)).toString(),
       archived: j['archived'] == true,
-      daysCount: maxUsed.clamp(15, 30),
+      daysCount: maxUsed.clamp(kDefaultDaysCount, kMaxDaysCount),
       tasmi: t,
       attendance: a,
     );
@@ -432,9 +719,16 @@ class StudentModel {
       id: (j['id'] ?? genId('st')).toString(),
       name: (j['name'] ?? '').toString(),
       age: (j['age'] ?? '').toString(),
-      juzCount: (j['juzCount'] is num) ? (j['juzCount'] as num).toInt().clamp(0, 30) : 0,
-      points: (j['points'] is num) ? (j['points'] as num).toInt().clamp(0, 999999) : 0,
-      pointsHistory: phRaw.whereType<Map<String, dynamic>>().map(PointsLogEntry.fromJson).toList(),
+      juzCount: (j['juzCount'] is num)
+          ? (j['juzCount'] as num).toInt().clamp(0, 30)
+          : 0,
+      points: (j['points'] is num)
+          ? (j['points'] as num).toInt().clamp(0, 999999)
+          : 0,
+      pointsHistory: phRaw
+          .whereType<Map<String, dynamic>>()
+          .map(PointsLogEntry.fromJson)
+          .toList(),
       activeMonthKey: (j['activeMonthKey'] ?? parsedMonths.keys.last).toString(),
       months: parsedMonths,
     );
@@ -487,97 +781,12 @@ class CircleModel {
       gender: (j['gender'] == 'female') ? 'female' : 'male',
       password: (j['password'] ?? '').toString(),
       announcement: (j['announcement'] ?? '').toString(),
-      students: sRaw.whereType<Map<String, dynamic>>().map(StudentModel.fromJson).toList(),
+      students: sRaw
+          .whereType<Map<String, dynamic>>()
+          .map(StudentModel.fromJson)
+          .toList(),
     );
   }
-}
-
-class MarketItemModel {
-  String id;
-  String name;
-  String type;
-  int cost;
-  bool unlimited;
-  int stock;
-
-  MarketItemModel({
-    required this.id,
-    required this.name,
-    required this.type,
-    required this.cost,
-    required this.unlimited,
-    required this.stock,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'type': type,
-        'cost': cost,
-        'unlimited': unlimited,
-        'stock': stock,
-      };
-
-  factory MarketItemModel.fromJson(Map<String, dynamic> j) => MarketItemModel(
-        id: (j['id'] ?? genId('mkt')).toString(),
-        name: (j['name'] ?? '').toString(),
-        type: (j['type'] ?? 'جائزة').toString(),
-        cost: (j['cost'] is num) ? (j['cost'] as num).toInt().clamp(1, 999999) : 20,
-        unlimited: j['unlimited'] == true,
-        stock: (j['stock'] is num) ? (j['stock'] as num).toInt().clamp(0, 999999) : 0,
-      );
-}
-
-class RewardRequestModel {
-  String id;
-  String studentId;
-  String studentName;
-  String circleId;
-  String circleName;
-  String itemId;
-  String itemName;
-  int cost;
-  String status; // 'pending' | 'delivered' | 'cancelled'
-  String date;
-
-  RewardRequestModel({
-    required this.id,
-    required this.studentId,
-    required this.studentName,
-    required this.circleId,
-    required this.circleName,
-    required this.itemId,
-    required this.itemName,
-    required this.cost,
-    required this.status,
-    required this.date,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'studentId': studentId,
-        'studentName': studentName,
-        'circleId': circleId,
-        'circleName': circleName,
-        'itemId': itemId,
-        'itemName': itemName,
-        'cost': cost,
-        'status': status,
-        'date': date,
-      };
-
-  factory RewardRequestModel.fromJson(Map<String, dynamic> j) => RewardRequestModel(
-        id: (j['id'] ?? genId('req')).toString(),
-        studentId: (j['studentId'] ?? '').toString(),
-        studentName: (j['studentName'] ?? '').toString(),
-        circleId: (j['circleId'] ?? '').toString(),
-        circleName: (j['circleName'] ?? '').toString(),
-        itemId: (j['itemId'] ?? '').toString(),
-        itemName: (j['itemName'] ?? '').toString(),
-        cost: (j['cost'] is num) ? (j['cost'] as num).toInt() : 0,
-        status: (j['status'] ?? 'pending').toString(),
-        date: (j['date'] ?? '').toString(),
-      );
 }
 
 class ContactMethodModel {
@@ -600,7 +809,8 @@ class ContactMethodModel {
         'value': value,
       };
 
-  factory ContactMethodModel.fromJson(Map<String, dynamic> j) => ContactMethodModel(
+  factory ContactMethodModel.fromJson(Map<String, dynamic> j) =>
+      ContactMethodModel(
         id: (j['id'] ?? genId('cnt')).toString(),
         type: (j['type'] ?? 'whatsapp').toString(),
         label: (j['label'] ?? '').toString(),
@@ -640,11 +850,17 @@ class AiAnalysis {
   });
 
   factory AiAnalysis.compute(MonthRecord rec, MonthRecord? prev) {
-    int present = 0, excused = 0, absent = 0, tasmiCount = 0, gradePts = 0, streak = 0, maxStreak = 0;
+    int present = 0,
+        excused = 0,
+        absent = 0,
+        tasmiCount = 0,
+        gradePts = 0,
+        streak = 0,
+        maxStreak = 0;
     const gMap = {'ممتاز': 100, 'جيد جداً': 85, 'جيد': 70, 'يحتاج مراجعة': 50};
-    final limit = rec.daysCount.clamp(15, 30);
+    final limit = rec.daysCount.clamp(kDefaultDaysCount, kMaxDaysCount);
 
-    for (int d = 1; d <= 30; d++) {
+    for (int d = 1; d <= kMaxDaysCount; d++) {
       final att = rec.attendance['$d'] ?? 'none';
       if (att == 'present') {
         present++;
@@ -664,9 +880,12 @@ class AiAnalysis {
     }
 
     final counted = present + absent;
-    final attRate = counted > 0 ? ((present / counted) * 100).round() : (excused > 0 ? 100 : 0);
+    final attRate = counted > 0
+        ? ((present / counted) * 100).round()
+        : (excused > 0 ? 100 : 0);
     final avgGrade = tasmiCount > 0 ? (gradePts / tasmiCount).round() : 0;
-    final paceTarget = (present > 0 ? present : 1).clamp(1, limit < 12 ? limit : 12);
+    final paceTarget =
+        (present > 0 ? present : 1).clamp(1, limit < 12 ? limit : 12);
     final pace = present > 0
         ? ((tasmiCount / paceTarget) * 100).round().clamp(0, 100)
         : (tasmiCount > 0 ? 80 : 0);
@@ -699,21 +918,28 @@ class AiAnalysis {
 
     final insights = <String>[];
     if (counted == 0 && excused == 0 && tasmiCount == 0) {
-      insights.add('لم يتم تسجيل حضور أو تسميع لهذا الشهر بعد. سيبدأ التحليل الذكي تلقائياً فور تسجيل أول يوم.');
+      insights.add(
+          'لم يتم تسجيل حضور أو تسميع لهذا الشهر بعد. سيبدأ التحليل الذكي تلقائياً فور تسجيل أول يوم.');
     } else {
       if (attRate >= 90) {
-        insights.add('انضباط ممتاز في الحضور بنسبة $attRate% مع أطول التزام متتالي بلغ $maxStreak أيام.');
+        insights.add(
+            'انضباط ممتاز في الحضور بنسبة $attRate% مع أطول التزام متتالي بلغ $maxStreak أيام.');
       } else if (attRate >= 75) {
-        insights.add('مستوى الحضور جيد ($attRate%) مع تسجيل $absent أيام غياب بدون عذر${excused > 0 ? ' و$excused بعذر' : ''}.');
+        insights.add(
+            'مستوى الحضور جيد ($attRate%) مع تسجيل $absent أيام غياب بدون عذر${excused > 0 ? ' و$excused بعذر' : ''}.');
       } else {
-        insights.add('تنبيه غياب: تم تسجيل $absent أيام غياب بدون عذر (الحضور $attRate%)؛ يُنصح بالتواصل مع ولي الأمر.');
+        insights.add(
+            'تنبيه غياب: تم تسجيل $absent أيام غياب بدون عذر (الحضور $attRate%)؛ يُنصح بالتواصل مع ولي الأمر.');
       }
       if (tasmiCount >= 8 && avgGrade >= 85) {
-        insights.add('إنجاز قوي في التسميع ($tasmiCount جلسات بمتوسط جودة $avgGrade%) يعكس حفظاً متيناً.');
+        insights.add(
+            'إنجاز قوي في التسميع ($tasmiCount جلسات بمتوسط جودة $avgGrade%) يعكس حفظاً متيناً.');
       } else if (tasmiCount >= 3) {
-        insights.add('تم إنجاز $tasmiCount جلسات تسميع هذا الشهر بمتوسط جودة $avgGrade%.');
+        insights.add(
+            'تم إنجاز $tasmiCount جلسات تسميع هذا الشهر بمتوسط جودة $avgGrade%.');
       } else if (tasmiCount > 0) {
-        insights.add('عدد جلسات التسميع ($tasmiCount) ما زال محدوداً؛ يُنصح بتكثيف الورد اليومي.');
+        insights.add(
+            'عدد جلسات التسميع ($tasmiCount) ما زال محدوداً؛ يُنصح بتكثيف الورد اليومي.');
       } else {
         insights.add('تم تسجيل الحضور ولكن لم يُسجل تسميع يومي بعد في هذا الشهر.');
       }
@@ -721,16 +947,28 @@ class AiAnalysis {
         final p = AiAnalysis.compute(prev, null);
         if (p.present + p.absent > 0) {
           final diff = overall - p.overallScore;
-          if (diff >= 5) insights.add('مقارنة بشهر ${prev.label}: تطوّر إيجابي بمقدار +$diff نقطة.');
-          if (diff <= -5) insights.add('مقارنة بشهر ${prev.label}: تراجع بمقدار ${diff.abs()} نقطة؛ يُنصح بالدعم.');
+          if (diff >= 5) {
+            insights.add(
+                'مقارنة بشهر ${prev.label}: تطوّر إيجابي بمقدار +$diff نقطة.');
+          }
+          if (diff <= -5) {
+            insights.add(
+                'مقارنة بشهر ${prev.label}: تراجع بمقدار ${diff.abs()} نقطة؛ يُنصح بالدعم.');
+          }
         }
       }
     }
 
     final badges = <({String title, String icon, Color color})>[];
-    if (attRate >= 90 && present >= 5) badges.add((title: 'بطل الالتزام', icon: '🛡️', color: kGreen));
-    if (tasmiCount >= 4) badges.add((title: 'مثابر التسميع', icon: '📖', color: kBlueMain));
-    if (overall >= 85) badges.add((title: 'نجم التميّز', icon: '⭐', color: kGold));
+    if (attRate >= 90 && present >= 5) {
+      badges.add((title: 'بطل الالتزام', icon: '🛡️', color: kGreen));
+    }
+    if (tasmiCount >= 4) {
+      badges.add((title: 'مثابر التسميع', icon: '📖', color: kBlueMain));
+    }
+    if (overall >= 85) {
+      badges.add((title: 'نجم التميّز', icon: '⭐', color: kGold));
+    }
 
     return AiAnalysis(
       present: present,
@@ -755,8 +993,6 @@ class AiAnalysis {
 // ---------------------------------------------------------------------------
 class AppStore extends ChangeNotifier {
   List<CircleModel> circles = [];
-  List<MarketItemModel> marketItems = [];
-  List<RewardRequestModel> rewardRequests = [];
   List<ContactMethodModel> contacts = [];
   String generalAnnouncement = '';
 
@@ -767,7 +1003,8 @@ class AppStore extends ChangeNotifier {
 
   Set<String> pendingCircleIds = {};
   bool pendingMeta = false;
-  String syncStatus = 'connecting'; // connecting | synced | saving | pending | offline
+  String syncStatus =
+      'connecting'; // connecting | synced | saving | pending | offline
   Timer? _syncTimer;
 
   Future<void> init() async {
@@ -789,7 +1026,10 @@ class AppStore extends ChangeNotifier {
         final list = jsonDecode(rawPinned) as List<dynamic>;
         pinnedStudents = list
             .whereType<Map<String, dynamic>>()
-            .map((m) => {'circleId': '${m['circleId'] ?? ''}', 'studentId': '${m['studentId'] ?? ''}'})
+            .map((m) => {
+                  'circleId': '${m['circleId'] ?? ''}',
+                  'studentId': '${m['studentId'] ?? ''}',
+                })
             .toList();
       } catch (_) {}
     }
@@ -809,7 +1049,9 @@ class AppStore extends ChangeNotifier {
     if (rawPending != null) {
       try {
         final m = jsonDecode(rawPending) as Map<String, dynamic>;
-        pendingCircleIds = ((m['circles'] as List<dynamic>?) ?? []).map((e) => e.toString()).toSet();
+        pendingCircleIds = ((m['circles'] as List<dynamic>?) ?? [])
+            .map((e) => e.toString())
+            .toSet();
         pendingMeta = m['meta'] == true;
       } catch (_) {}
     }
@@ -820,8 +1062,6 @@ class AppStore extends ChangeNotifier {
 
   Map<String, dynamic> toFullJson() => {
         'circles': circles.map((c) => c.toJson()).toList(),
-        'marketItems': marketItems.map((m) => m.toJson()).toList(),
-        'rewardRequests': rewardRequests.map((r) => r.toJson()).toList(),
         'contacts': contacts.map((c) => c.toJson()).toList(),
         'generalAnnouncement': generalAnnouncement,
       };
@@ -830,14 +1070,6 @@ class AppStore extends ChangeNotifier {
     circles = ((raw['circles'] as List<dynamic>?) ?? [])
         .whereType<Map<String, dynamic>>()
         .map(CircleModel.fromJson)
-        .toList();
-    marketItems = ((raw['marketItems'] as List<dynamic>?) ?? [])
-        .whereType<Map<String, dynamic>>()
-        .map(MarketItemModel.fromJson)
-        .toList();
-    rewardRequests = ((raw['rewardRequests'] as List<dynamic>?) ?? [])
-        .whereType<Map<String, dynamic>>()
-        .map(RewardRequestModel.fromJson)
         .toList();
     contacts = ((raw['contacts'] as List<dynamic>?) ?? [])
         .whereType<Map<String, dynamic>>()
@@ -864,7 +1096,8 @@ class AppStore extends ChangeNotifier {
 
   void nextDhikr() {
     dhikrIndex = (dhikrIndex + 1) % kAdhkar.length;
-    SharedPreferences.getInstance().then((p) => p.setInt(kDhikrIdxKey, dhikrIndex));
+    SharedPreferences.getInstance()
+        .then((p) => p.setInt(kDhikrIdxKey, dhikrIndex));
     notifyListeners();
   }
 
@@ -883,12 +1116,13 @@ class AppStore extends ChangeNotifier {
     return null;
   }
 
-  bool isPinned(String circleId, String studentId) =>
-      pinnedStudents.any((p) => p['circleId'] == circleId && p['studentId'] == studentId);
+  bool isPinned(String circleId, String studentId) => pinnedStudents
+      .any((p) => p['circleId'] == circleId && p['studentId'] == studentId);
 
   Future<void> togglePin(String circleId, String studentId) async {
     if (isPinned(circleId, studentId)) {
-      pinnedStudents.removeWhere((p) => p['circleId'] == circleId && p['studentId'] == studentId);
+      pinnedStudents.removeWhere(
+          (p) => p['circleId'] == circleId && p['studentId'] == studentId);
     } else {
       pinnedStudents.add({'circleId': circleId, 'studentId': studentId});
     }
@@ -897,8 +1131,10 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addRecent(String circleId, String studentId, String studentName, String circleName, String gender) async {
-    recentSearches.removeWhere((r) => r['circleId'] == circleId && r['studentId'] == studentId);
+  Future<void> addRecent(String circleId, String studentId, String studentName,
+      String circleName, String gender) async {
+    recentSearches.removeWhere(
+        (r) => r['circleId'] == circleId && r['studentId'] == studentId);
     recentSearches.insert(0, {
       'circleId': circleId,
       'studentId': studentId,
@@ -906,14 +1142,17 @@ class AppStore extends ChangeNotifier {
       'circleName': circleName,
       'gender': gender,
     });
-    if (recentSearches.length > 6) recentSearches = recentSearches.sublist(0, 6);
+    if (recentSearches.length > 6) {
+      recentSearches = recentSearches.sublist(0, 6);
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(kRecentKey, jsonEncode(recentSearches));
     notifyListeners();
   }
 
   Future<void> _upsertRow(String rowId, Map<String, dynamic> payload) async {
-    final uri = Uri.parse('$kSupabaseUrl/rest/v1/$kSupabaseTable?on_conflict=id');
+    final uri =
+        Uri.parse('$kSupabaseUrl/rest/v1/$kSupabaseTable?on_conflict=id');
     final res = await http
         .post(
           uri,
@@ -924,7 +1163,11 @@ class AppStore extends ChangeNotifier {
             'Prefer': 'resolution=merge-duplicates,return=minimal',
           },
           body: jsonEncode([
-            {'id': rowId, 'data': payload, 'updated_at': DateTime.now().toIso8601String()}
+            {
+              'id': rowId,
+              'data': payload,
+              'updated_at': DateTime.now().toIso8601String(),
+            }
           ]),
         )
         .timeout(const Duration(seconds: 10));
@@ -951,12 +1194,11 @@ class AppStore extends ChangeNotifier {
       if (pendingMeta) {
         await _upsertRow('meta_v12', {
           'circleOrder': circles.map((c) => c.id).toList(),
-          'marketItems': marketItems.map((m) => m.toJson()).toList(),
-          'rewardRequests': rewardRequests.map((r) => r.toJson()).toList(),
           'contacts': contacts.map((c) => c.toJson()).toList(),
           'generalAnnouncement': generalAnnouncement,
         });
-        await _upsertRow('main', {'circles': circles.map((c) => c.toJson()).toList()});
+        await _upsertRow(
+            'main', {'circles': circles.map((c) => c.toJson()).toList()});
         pendingMeta = false;
       }
       await _saveLocal();
@@ -993,7 +1235,8 @@ class AppStore extends ChangeNotifier {
     syncStatus = 'connecting';
     notifyListeners();
     try {
-      final uri = Uri.parse('$kSupabaseUrl/rest/v1/$kSupabaseTable?select=id,data,updated_at');
+      final uri = Uri.parse(
+          '$kSupabaseUrl/rest/v1/$kSupabaseTable?select=id,data,updated_at');
       final res = await http.get(
         uri,
         headers: {
@@ -1045,28 +1288,23 @@ class AppStore extends ChangeNotifier {
         if (merged.isNotEmpty || meta != null) {
           circles = merged;
           if (meta != null) {
-            marketItems = ((meta['marketItems'] as List<dynamic>?) ?? [])
-                .whereType<Map<String, dynamic>>()
-                .map(MarketItemModel.fromJson)
-                .toList();
-            rewardRequests = ((meta['rewardRequests'] as List<dynamic>?) ?? [])
-                .whereType<Map<String, dynamic>>()
-                .map(RewardRequestModel.fromJson)
-                .toList();
             contacts = ((meta['contacts'] as List<dynamic>?) ?? [])
                 .whereType<Map<String, dynamic>>()
                 .map(ContactMethodModel.fromJson)
                 .toList();
-            generalAnnouncement = (meta['generalAnnouncement'] ?? '').toString();
+            generalAnnouncement =
+                (meta['generalAnnouncement'] ?? '').toString();
           }
           await _saveLocal();
         }
         syncStatus = 'synced';
       } else {
-        syncStatus = (pendingCircleIds.isNotEmpty || pendingMeta) ? 'pending' : 'offline';
+        syncStatus =
+            (pendingCircleIds.isNotEmpty || pendingMeta) ? 'pending' : 'offline';
       }
     } catch (_) {
-      syncStatus = (pendingCircleIds.isNotEmpty || pendingMeta) ? 'pending' : 'offline';
+      syncStatus =
+          (pendingCircleIds.isNotEmpty || pendingMeta) ? 'pending' : 'offline';
     }
     notifyListeners();
   }
@@ -1082,13 +1320,54 @@ class AppStore extends ChangeNotifier {
     }
   }
 
-  List<({String circleId, String studentId, String name, String circleName, String gender, int score, int tasmiCount})>
-      topStars() {
-    final list = <({String circleId, String studentId, String name, String circleName, String gender, int score, int tasmiCount})>[];
+  // AI computes Top 3 Stars ONLY from the latest archived month across circles
+  ({
+    String? monthLabel,
+    List<
+        ({
+          String circleId,
+          String studentId,
+          String name,
+          String circleName,
+          String gender,
+          int score,
+          int tasmiCount,
+          int attendanceRate,
+        })> stars
+  }) topStarsFromLatestArchivedMonth() {
+    String? latestKey;
+    String? latestLabel;
     for (final c in circles) {
       for (final s in c.students) {
-        final rec = s.months[s.activeMonthKey];
-        if (rec == null) continue;
+        for (final rec in s.months.values) {
+          if (rec.archived) {
+            if (latestKey == null || rec.key.compareTo(latestKey) > 0) {
+              latestKey = rec.key;
+              latestLabel = rec.label;
+            }
+          }
+        }
+      }
+    }
+    if (latestKey == null) {
+      return (monthLabel: null, stars: []);
+    }
+
+    final list = <({
+      String circleId,
+      String studentId,
+      String name,
+      String circleName,
+      String gender,
+      int score,
+      int tasmiCount,
+      int attendanceRate,
+    })>[];
+
+    for (final c in circles) {
+      for (final s in c.students) {
+        final rec = s.months[latestKey];
+        if (rec == null || !rec.archived) continue;
         final an = AiAnalysis.compute(rec, null);
         if (an.overallScore > 0) {
           list.add((
@@ -1099,22 +1378,31 @@ class AppStore extends ChangeNotifier {
             gender: c.gender,
             score: an.overallScore,
             tasmiCount: an.tasmiCount,
+            attendanceRate: an.attendanceRate,
           ));
         }
       }
     }
-    list.sort((a, b) => b.score != a.score ? b.score.compareTo(a.score) : b.tasmiCount.compareTo(a.tasmiCount));
-    return list.take(3).toList();
+    list.sort((a, b) {
+      if (b.score != a.score) return b.score.compareTo(a.score);
+      if (b.tasmiCount != a.tasmiCount) {
+        return b.tasmiCount.compareTo(a.tasmiCount);
+      }
+      return b.attendanceRate.compareTo(a.attendanceRate);
+    });
+    return (monthLabel: latestLabel, stars: list.take(3).toList());
   }
 
   String latestActivitySummary(StudentModel s) {
     final rec = s.months[s.activeMonthKey];
     if (rec != null) {
-      for (int d = 30; d >= 1; d--) {
+      for (int d = kMaxDaysCount; d >= 1; d--) {
         final t = rec.tasmi['$d'];
-        if (t != null && t.text.isNotEmpty) return 'تسميع: ${t.text} (${t.grade})';
+        if (t != null && t.text.isNotEmpty) {
+          return '${t.typeLabel}: ${t.text} (${t.grade})';
+        }
       }
-      for (int d = 30; d >= 1; d--) {
+      for (int d = kMaxDaysCount; d >= 1; d--) {
         final a = rec.attendance['$d'];
         if (a == 'present') return 'حاضر في اليوم $d';
         if (a == 'excused') return 'غياب بعذر في اليوم $d';
@@ -1183,7 +1471,7 @@ class _KhayrUmmahAppState extends State<KhayrUmmahApp> {
 }
 
 // ---------------------------------------------------------------------------
-// 1. Splash Screen
+// 1. Splash Screen (Original Blue Gradient + assets/logo.png in White Square)
 // ---------------------------------------------------------------------------
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -1246,7 +1534,7 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'نظام متابعة الحلقات القرآنية — الإصدار 1.2',
+                'نظام متابعة الحلقات القرآنية',
                 style: TextStyle(color: Colors.white70, fontSize: 13),
               ),
             ],
@@ -1258,10 +1546,32 @@ class _SplashScreenState extends State<SplashScreen> {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Home Screen (Rotating Adhkar + ☰ Menu + Role Pills + Stars of the Month)
+// 2. Home Screen (Original Curved Header + Offline Damascus Prayer Times +
+//    Golden Teacher & Blue Student Pills + White Stars of the Month Card)
 // ---------------------------------------------------------------------------
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  Timer? _prayerTimer;
+  DateTime _now = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _prayerTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
+  }
+
+  @override
+  void dispose() {
+    _prayerTimer?.cancel();
+    super.dispose();
+  }
 
   void _openMenuSheet(BuildContext context) {
     showModalBottomSheet(
@@ -1281,12 +1591,20 @@ class HomeScreen extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('القائمة الرئيسية', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                  IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close)),
+                  const Text('القائمة الرئيسية',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.close)),
                 ],
               ),
               const SizedBox(height: 8),
-              const Text('📞 طرق التواصل مع المعهد', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kBlueMain)),
+              const Text('📞 طرق التواصل مع المعهد',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: kBlueMain)),
               const SizedBox(height: 8),
               if (appStore.contacts.isEmpty)
                 Container(
@@ -1295,11 +1613,15 @@ class HomeScreen extends StatelessWidget {
                     color: Theme.of(context).scaffoldBackgroundColor,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Text('لم يضف مدير المعهد طرق تواصل بعد.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
+                  child: const Text('لم يضف مدير المعهد طرق تواصل بعد.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12)),
                 )
               else
                 ...appStore.contacts.map((ct) {
-                  final meta = kContactTypes.firstWhere((e) => e['id'] == ct.type, orElse: () => kContactTypes.last);
+                  final meta = kContactTypes.firstWhere(
+                      (e) => e['id'] == ct.type,
+                      orElse: () => kContactTypes.last);
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: InkWell(
@@ -1319,18 +1641,31 @@ class HomeScreen extends StatelessWidget {
                         ),
                         child: Row(
                           children: [
-                            Text(meta['icon'] ?? '📍', style: const TextStyle(fontSize: 20)),
+                            Text(meta['icon'] ?? '📍',
+                                style: const TextStyle(fontSize: 20)),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(ct.label.isNotEmpty ? ct.label : (meta['label'] ?? ''), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-                                  Text(ct.value, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                  Text(
+                                      ct.label.isNotEmpty
+                                          ? ct.label
+                                          : (meta['label'] ?? ''),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13)),
+                                  Text(ct.value,
+                                      style: const TextStyle(
+                                          fontSize: 12, color: Colors.grey)),
                                 ],
                               ),
                             ),
-                            const Text('نسخ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kBlueMain)),
+                            const Text('نسخ',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: kBlueMain)),
                           ],
                         ),
                       ),
@@ -1347,7 +1682,8 @@ class HomeScreen extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(15),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [kBlueDeep, kBlueDark]),
+                    gradient:
+                        const LinearGradient(colors: [kBlueDeep, kBlueDark]),
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: const Row(
@@ -1358,12 +1694,19 @@ class HomeScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('الإدارة العامة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
-                            Text('خاص بمدير الجمعية والمعهد', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                            Text('الإدارة العامة',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15)),
+                            Text('خاص بمدير الجمعية والمعهد',
+                                style: TextStyle(
+                                    color: Colors.white70, fontSize: 11)),
                           ],
                         ),
                       ),
-                      Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 16),
+                      Icon(Icons.arrow_forward_ios,
+                          color: Colors.white70, size: 16),
                     ],
                   ),
                 ),
@@ -1388,7 +1731,8 @@ class HomeScreen extends StatelessWidget {
         if (until > 0 && DateTime.now().millisecondsSinceEpoch >= until) {
           fails = 0;
           until = 0;
-          await prefs.setString(kLockoutKey, jsonEncode({'fails': 0, 'until': 0}));
+          await prefs.setString(
+              kLockoutKey, jsonEncode({'fails': 0, 'until': 0}));
         }
       } catch (_) {}
     }
@@ -1406,18 +1750,23 @@ class HomeScreen extends StatelessWidget {
           final minsLeft = locked ? ((until - now) / 60000).ceil() : 0;
 
           return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            title: const Text('🛡️ الإدارة العامة — خاص بالمدير', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: const Text('🛡️ الإدارة العامة — خاص بالمدير',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
             content: locked
                 ? Text(
                     '⛔ تم قفل الدخول مؤقتاً بعد 3 محاولات خاطئة.\nيرجى المحاولة بعد حوالي $minsLeft دقيقة.',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: kRed, fontWeight: FontWeight.bold, fontSize: 13),
+                    style: const TextStyle(
+                        color: kRed, fontWeight: FontWeight.bold, fontSize: 13),
                   )
                 : Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('دخول محمي ومشفّر (SHA-256)', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      const Text('دخول محمي ومشفّر (SHA-256)',
+                          style: TextStyle(fontSize: 11, color: Colors.grey)),
                       const SizedBox(height: 12),
                       TextField(
                         controller: ctrl,
@@ -1425,37 +1774,55 @@ class HomeScreen extends StatelessWidget {
                         textAlign: TextAlign.center,
                         decoration: InputDecoration(
                           hintText: 'أدخل كلمة سر المدير...',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14)),
                         ),
                       ),
                       if (errMsg.isNotEmpty) ...[
                         const SizedBox(height: 8),
-                        Text(errMsg, style: const TextStyle(color: kRed, fontSize: 12, fontWeight: FontWeight.bold)),
+                        Text(errMsg,
+                            style: const TextStyle(
+                                color: kRed,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold)),
                       ]
                     ],
                   ),
             actions: locked
-                ? [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق'))]
+                ? [
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('إغلاق'))
+                  ]
                 : [
-                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('إلغاء')),
                     ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: kGoldDark, foregroundColor: Colors.white),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: kGoldDark,
+                          foregroundColor: Colors.white),
                       onPressed: () async {
                         if (verifyDirectorPassword(ctrl.text)) {
-                          await prefs.setString(kLockoutKey, jsonEncode({'fails': 0, 'until': 0}));
+                          await prefs.setString(kLockoutKey,
+                              jsonEncode({'fails': 0, 'until': 0}));
                           if (!ctx.mounted) return;
                           Navigator.pop(ctx);
                           Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+                            MaterialPageRoute(
+                                builder: (_) => const AdminDashboardScreen()),
                           );
                         } else {
                           fails++;
                           if (fails >= 3) {
-                            until = DateTime.now().millisecondsSinceEpoch + 5 * 60 * 1000;
+                            until = DateTime.now().millisecondsSinceEpoch +
+                                5 * 60 * 1000;
                           }
-                          await prefs.setString(kLockoutKey, jsonEncode({'fails': fails, 'until': until}));
+                          await prefs.setString(kLockoutKey,
+                              jsonEncode({'fails': fails, 'until': until}));
                           setS(() {
-                            errMsg = 'كلمة السر غير صحيحة (متبقي ${3 - fails} محاولات)';
+                            errMsg =
+                                'كلمة السر غير صحيحة (متبقي ${3 - fails} محاولات)';
                           });
                         }
                       },
@@ -1483,14 +1850,118 @@ class HomeScreen extends StatelessWidget {
     }
   }
 
+  Widget _buildPrayerCard(PrayerTimesInfo info) {
+    final nextPrayer = info.prayers[info.nextIndex];
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Text('🕌', style: TextStyle(fontSize: 14)),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'أوقات الصلاة — دمشق',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  color: kGold.withValues(alpha: 0.30),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'القادمة: ${nextPrayer.name} بعد ${PrayerTimesInfo.fmtCountdown(info.minutesRemaining)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: info.progress,
+              minHeight: 4,
+              backgroundColor: Colors.white.withValues(alpha: 0.18),
+              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFE7CFAF)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: List.generate(info.prayers.length, (i) {
+              final p = info.prayers[i];
+              final isNext = i == info.nextIndex;
+              return Expanded(
+                child: Container(
+                  margin: EdgeInsets.only(left: i < info.prayers.length - 1 ? 4 : 0),
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+                  decoration: BoxDecoration(
+                    color: isNext
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        p.name,
+                        style: TextStyle(
+                          color: isNext ? kBlueDeep : Colors.white70,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        PrayerTimesInfo.fmtMin(p.minutes),
+                        style: TextStyle(
+                          color: isNext ? kGoldDark : Colors.white,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: appStore,
       builder: (context, _) {
         final dhikr = kAdhkar[appStore.dhikrIndex % kAdhkar.length];
-        final stars = appStore.topStars();
+        final starsData = appStore.topStarsFromLatestArchivedMonth();
+        final stars = starsData.stars;
+        final starsMonthLabel = starsData.monthLabel;
         const medals = ['🥇', '🥈', '🥉'];
+        final prayerInfo = PrayerTimesInfo.forDamascus(_now);
         final hasValidPin = appStore.pinnedStudents.any((p) {
           final c = appStore.getCircle(p['circleId'] ?? '');
           return appStore.getStudent(c, p['studentId'] ?? '') != null;
@@ -1503,17 +1974,19 @@ class HomeScreen extends StatelessWidget {
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
                 children: [
-                  // Curved Deep Blue Header
+                  // Curved Deep Damascene Blue Header (#1B4460 / #255575 / #4383AC)
                   Container(
                     width: double.infinity,
-                    padding: EdgeInsets.fromLTRB(18, MediaQuery.of(context).padding.top + 14, 18, 36),
+                    padding: EdgeInsets.fromLTRB(
+                        18, MediaQuery.of(context).padding.top + 14, 18, 24),
                     decoration: const BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topRight,
                         end: Alignment.bottomLeft,
                         colors: [kBlueDeep, kBlueDark, kBlueMain],
                       ),
-                      borderRadius: BorderRadius.vertical(bottom: Radius.circular(38)),
+                      borderRadius:
+                          BorderRadius.vertical(bottom: Radius.circular(38)),
                     ),
                     child: Column(
                       children: [
@@ -1530,11 +2003,13 @@ class HomeScreen extends StatelessWidget {
                                   color: Colors.white.withValues(alpha: 0.16),
                                   borderRadius: BorderRadius.circular(14),
                                 ),
-                                child: const Icon(Icons.menu, color: Colors.white),
+                                child:
+                                    const Icon(Icons.menu, color: Colors.white),
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 5),
                               decoration: BoxDecoration(
                                 color: Colors.white.withValues(alpha: 0.16),
                                 borderRadius: BorderRadius.circular(20),
@@ -1548,12 +2023,18 @@ class HomeScreen extends StatelessWidget {
                                     decoration: BoxDecoration(
                                       color: appStore.syncStatus == 'synced'
                                           ? Colors.greenAccent
-                                          : (appStore.syncStatus == 'pending' ? Colors.amber : Colors.white70),
+                                          : (appStore.syncStatus == 'pending'
+                                              ? Colors.amber
+                                              : Colors.white70),
                                       shape: BoxShape.circle,
                                     ),
                                   ),
                                   const SizedBox(width: 6),
-                                  Text(_syncLabel(appStore.syncStatus), style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                                  Text(_syncLabel(appStore.syncStatus),
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold)),
                                 ],
                               ),
                             ),
@@ -1567,12 +2048,17 @@ class HomeScreen extends StatelessWidget {
                                   color: Colors.white.withValues(alpha: 0.16),
                                   borderRadius: BorderRadius.circular(14),
                                 ),
-                                child: Icon(appStore.darkMode ? Icons.wb_sunny : Icons.nightlight_round, color: Colors.white, size: 20),
+                                child: Icon(
+                                    appStore.darkMode
+                                        ? Icons.wb_sunny
+                                        : Icons.nightlight_round,
+                                    color: Colors.white,
+                                    size: 20),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
                         GestureDetector(
                           onTap: appStore.nextDhikr,
                           child: Column(
@@ -1582,18 +2068,21 @@ class HomeScreen extends StatelessWidget {
                                 textAlign: TextAlign.center,
                                 style: GoogleFonts.amiri(
                                   color: Colors.white,
-                                  fontSize: 34,
+                                  fontSize: 32,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 4),
                               const Text(
                                 'جمعية خير أمة — متابعة الحلقات القرآنية',
-                                style: TextStyle(color: Colors.white70, fontSize: 12),
+                                style: TextStyle(
+                                    color: Colors.white70, fontSize: 12),
                               ),
                             ],
                           ),
                         ),
+                        // Offline Damascus Prayer Times Card inside Curved Header
+                        _buildPrayerCard(prayerInfo),
                       ],
                     ),
                   ),
@@ -1603,27 +2092,36 @@ class HomeScreen extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(18, 18, 18, 32),
                     child: Column(
                       children: [
-                        // Teacher Pill Button
+                        // Golden Teacher Pill Button (#B6966C / #96764E)
                         _RolePillButton(
                           title: 'معلم',
-                          subtitle: 'دخول مباشر لحلقتك فقط',
+                          subtitle: 'دخول مباشر لحلقتك بكلمة المرور الخاصة',
                           icon: '👨‍🏫',
                           colors: const [Color(0xFFC7A87D), kGold, kGoldDark],
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TeacherAuthScreen())),
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const TeacherAuthScreen())),
                         ),
                         const SizedBox(height: 14),
-                        // Student Pill Button
+                        // Blue Student Pill Button (#4383AC / #255575)
                         _RolePillButton(
                           title: 'طالب',
                           subtitle: hasValidPin
-                              ? 'أبنائي المثبّتون (${appStore.pinnedStudents.length}) وسوق النقاط'
-                              : 'متابعة الطالب وسوق النقاط',
+                              ? 'أبنائي المثبّتون (${appStore.pinnedStudents.length}) ورصيد النقاط'
+                              : 'متابعة الطالب ورصيد النقاط',
                           icon: '📖',
-                          colors: const [Color(0xFF5696BF), kBlueMain, kBlueDark],
+                          colors: const [
+                            Color(0xFF5696BF),
+                            kBlueMain,
+                            kBlueDark
+                          ],
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => hasValidPin ? const PinnedStudentsScreen() : const StudentSearchScreen(),
+                              builder: (_) => hasValidPin
+                                  ? const PinnedStudentsScreen()
+                                  : const StudentSearchScreen(),
                             ),
                           ),
                         ),
@@ -1637,20 +2135,29 @@ class HomeScreen extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: Theme.of(context).cardColor,
                               borderRadius: BorderRadius.circular(20),
-                              border: const Border(right: BorderSide(color: kGold, width: 4)),
+                              border: const Border(
+                                  right: BorderSide(color: kGold, width: 4)),
                             ),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('📢', style: TextStyle(fontSize: 20)),
+                                const Text('📢',
+                                    style: TextStyle(fontSize: 20)),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      const Text('إعلان عام من إدارة الجمعية', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: kGoldDark)),
+                                      const Text('إعلان عام من إدارة الجمعية',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 12,
+                                              color: kGoldDark)),
                                       const SizedBox(height: 3),
-                                      Text(appStore.generalAnnouncement, style: const TextStyle(fontSize: 12.5, height: 1.4)),
+                                      Text(appStore.generalAnnouncement,
+                                          style: const TextStyle(
+                                              fontSize: 12.5, height: 1.4)),
                                     ],
                                   ),
                                 ),
@@ -1661,7 +2168,7 @@ class HomeScreen extends StatelessWidget {
 
                         const SizedBox(height: 22),
 
-                        // Layered Arched Stars of the Month Card
+                        // White Layered Arched Stars of the Month Card (Latest Archived Month ONLY)
                         Stack(
                           clipBehavior: Clip.none,
                           alignment: Alignment.topCenter,
@@ -1672,7 +2179,11 @@ class HomeScreen extends StatelessWidget {
                                 color: Theme.of(context).cardColor,
                                 borderRadius: BorderRadius.circular(28),
                                 boxShadow: [
-                                  BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 20, offset: const Offset(0, 8)),
+                                  BoxShadow(
+                                      color:
+                                          Colors.black.withValues(alpha: 0.06),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 8)),
                                 ],
                               ),
                               child: Column(
@@ -1680,78 +2191,194 @@ class HomeScreen extends StatelessWidget {
                                   Container(
                                     height: 28,
                                     decoration: const BoxDecoration(
-                                      gradient: LinearGradient(colors: [kBlueDark, kBlueMain]),
-                                      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                                      gradient: LinearGradient(
+                                          colors: [kBlueDark, kBlueMain]),
+                                      borderRadius: BorderRadius.vertical(
+                                          top: Radius.circular(28)),
                                     ),
                                   ),
                                   Padding(
-                                    padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
+                                    padding: const EdgeInsets.fromLTRB(
+                                        14, 14, 14, 18),
                                     child: stars.isEmpty
                                         ? const Padding(
-                                            padding: EdgeInsets.symmetric(vertical: 16),
-                                            child: Text('🌟 بانتظار أبطال هذا الشهر', style: TextStyle(fontWeight: FontWeight.bold)),
+                                            padding: EdgeInsets.symmetric(
+                                                vertical: 16),
+                                            child: Column(
+                                              children: [
+                                                Text(
+                                                    '🌟 بانتظار إعلان نجوم الشهر',
+                                                    style: TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                        fontSize: 14)),
+                                                SizedBox(height: 4),
+                                                Text(
+                                                  'يُحسب الأوائل الـ 3 تلقائياً بعد أرشفة الشهر من قِبل المعلمين',
+                                                  textAlign: TextAlign.center,
+                                                  style: TextStyle(
+                                                      fontSize: 11.5,
+                                                      color: Colors.grey),
+                                                ),
+                                              ],
+                                            ),
                                           )
                                         : Column(
-                                            children: List.generate(stars.length, (i) {
-                                              final st = stars[i];
-                                              final pal = CirclePalette.forGender(st.gender);
-                                              return Padding(
-                                                padding: EdgeInsets.only(bottom: i < stars.length - 1 ? 10 : 0),
-                                                child: InkWell(
-                                                  borderRadius: BorderRadius.circular(18),
-                                                  onTap: () => Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (_) => StudentProfileScreen(
-                                                        circleId: st.circleId,
-                                                        studentId: st.studentId,
-                                                        readOnly: true,
+                                            children: [
+                                              if (starsMonthLabel != null)
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                          bottom: 10),
+                                                  child: Text(
+                                                    'أوائل آخر شهر مؤرشف: $starsMonthLabel',
+                                                    style: const TextStyle(
+                                                        fontSize: 11.5,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: kGoldDark),
+                                                  ),
+                                                ),
+                                              ...List.generate(stars.length,
+                                                  (i) {
+                                                final st = stars[i];
+                                                final pal =
+                                                    CirclePalette.forGender(
+                                                        st.gender);
+                                                return Padding(
+                                                  padding: EdgeInsets.only(
+                                                      bottom:
+                                                          i < stars.length - 1
+                                                              ? 10
+                                                              : 0),
+                                                  child: InkWell(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            18),
+                                                    onTap: () => Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (_) =>
+                                                            StudentProfileScreen(
+                                                          circleId: st.circleId,
+                                                          studentId:
+                                                              st.studentId,
+                                                          readOnly: true,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    child: Container(
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                              12),
+                                                      decoration: BoxDecoration(
+                                                        color: Theme.of(context)
+                                                            .scaffoldBackgroundColor,
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(18),
+                                                        border: pal.isFemale
+                                                            ? Border.all(
+                                                                color: kPinkMain
+                                                                    .withValues(
+                                                                        alpha:
+                                                                            0.28))
+                                                            : null,
+                                                      ),
+                                                      child: Row(
+                                                        children: [
+                                                          Text(medals[i],
+                                                              style:
+                                                                  const TextStyle(
+                                                                      fontSize:
+                                                                          22)),
+                                                          const SizedBox(
+                                                              width: 10),
+                                                          Expanded(
+                                                            child: Column(
+                                                              crossAxisAlignment:
+                                                                  CrossAxisAlignment
+                                                                      .start,
+                                                              children: [
+                                                                Text(st.name,
+                                                                    style: const TextStyle(
+                                                                        fontWeight:
+                                                                            FontWeight
+                                                                                .w800,
+                                                                        fontSize:
+                                                                            14)),
+                                                                Text(
+                                                                    '${st.circleName} • ${st.tasmiCount} تسميع',
+                                                                    style: TextStyle(
+                                                                        fontSize:
+                                                                            11,
+                                                                        color: pal.isFemale
+                                                                            ? kPinkDeep
+                                                                            : Colors.grey)),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                          Container(
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .symmetric(
+                                                                    horizontal:
+                                                                        10,
+                                                                    vertical:
+                                                                        4),
+                                                            decoration:
+                                                                BoxDecoration(
+                                                              color: pal.main,
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          14),
+                                                            ),
+                                                            child: Text(
+                                                                '${st.score}%',
+                                                                style: const TextStyle(
+                                                                    color: Colors
+                                                                        .white,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w800,
+                                                                    fontSize:
+                                                                        12)),
+                                                          ),
+                                                        ],
                                                       ),
                                                     ),
                                                   ),
-                                                  child: Container(
-                                                    padding: const EdgeInsets.all(12),
-                                                    decoration: BoxDecoration(
-                                                      color: Theme.of(context).scaffoldBackgroundColor,
-                                                      borderRadius: BorderRadius.circular(18),
-                                                    ),
-                                                    child: Row(
-                                                      children: [
-                                                        Text(medals[i], style: const TextStyle(fontSize: 22)),
-                                                        const SizedBox(width: 10),
-                                                        Expanded(
-                                                          child: Column(
-                                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                                            children: [
-                                                              Text(st.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                                                              Text('${st.circleName} • ${st.tasmiCount} تسميع', style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                        Container(
-                                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                                          decoration: BoxDecoration(color: pal.main, borderRadius: BorderRadius.circular(14)),
-                                                          child: Text('${st.score}%', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                              );
-                                            }),
+                                                );
+                                              }),
+                                            ],
                                           ),
                                   ),
                                 ],
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 24, vertical: 8),
                               decoration: BoxDecoration(
-                                gradient: const LinearGradient(colors: [Color(0xFFC9A97E), kGold, kGoldDark]),
+                                gradient: const LinearGradient(colors: [
+                                  Color(0xFFC9A97E),
+                                  kGold,
+                                  kGoldDark
+                                ]),
                                 borderRadius: BorderRadius.circular(18),
-                                boxShadow: [BoxShadow(color: kGoldDark.withValues(alpha: 0.35), blurRadius: 12, offset: const Offset(0, 5))],
+                                boxShadow: [
+                                  BoxShadow(
+                                      color: kGoldDark.withValues(alpha: 0.35),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 5))
+                                ],
                               ),
-                              child: const Text('⭐  نجوم الشهر', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+                              child: const Text('⭐  نجوم الشهر',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15)),
                             ),
                           ],
                         ),
@@ -1794,27 +2421,42 @@ class _RolePillButton extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(colors: colors),
           borderRadius: BorderRadius.circular(26),
-          boxShadow: [BoxShadow(color: colors.last.withValues(alpha: 0.32), blurRadius: 16, offset: const Offset(0, 8))],
+          boxShadow: [
+            BoxShadow(
+                color: colors.last.withValues(alpha: 0.32),
+                blurRadius: 16,
+                offset: const Offset(0, 8))
+          ],
         ),
         child: Row(
           children: [
             Container(
               width: 48,
               height: 48,
-              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(16)),
-              child: Center(child: Text(icon, style: const TextStyle(fontSize: 24))),
+              decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(16)),
+              child:
+                  Center(child: Text(icon, style: const TextStyle(fontSize: 24))),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
-                  Text(subtitle, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                  Text(title,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800)),
+                  Text(subtitle,
+                      style:
+                          const TextStyle(color: Colors.white70, fontSize: 12)),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18),
+            const Icon(Icons.arrow_forward_ios,
+                color: Colors.white70, size: 18),
           ],
         ),
       ),
@@ -1833,6 +2475,7 @@ class TeacherAuthScreen extends StatefulWidget {
 
 class _TeacherAuthScreenState extends State<TeacherAuthScreen> {
   final _passCtrl = TextEditingController();
+  bool _obscure = true;
   String _err = '';
 
   void _submit() {
@@ -1849,7 +2492,9 @@ class _TeacherAuthScreenState extends State<TeacherAuthScreen> {
     if (matched != null) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => CircleDetailScreen(circleId: matched!.id, isAdmin: false)),
+        MaterialPageRoute(
+            builder: (_) =>
+                CircleDetailScreen(circleId: matched!.id, isAdmin: false)),
       );
     } else {
       setState(() => _err = 'كلمة مرور الحلقة غير صحيحة');
@@ -1859,11 +2504,15 @@ class _TeacherAuthScreenState extends State<TeacherAuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('بوابة المعلم'), backgroundColor: kBlueDark, foregroundColor: Colors.white),
+      appBar: AppBar(
+          title: const Text('بوابة المعلم'),
+          backgroundColor: kBlueDark,
+          foregroundColor: Colors.white),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           child: Padding(
             padding: const EdgeInsets.all(22),
             child: Column(
@@ -1871,21 +2520,33 @@ class _TeacherAuthScreenState extends State<TeacherAuthScreen> {
               children: [
                 const Text('🔑', style: TextStyle(fontSize: 38)),
                 const SizedBox(height: 10),
-                const Text('أدخل كلمة مرور حلقتك الخاصة', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                const Text('أدخل كلمة مرور حلقتك الخاصة',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                 const SizedBox(height: 14),
                 TextField(
                   controller: _passCtrl,
-                  obscureText: true,
+                  obscureText: _obscure,
                   textAlign: TextAlign.center,
                   onSubmitted: (_) => _submit(),
                   decoration: InputDecoration(
                     hintText: 'كلمة مرور الحلقة...',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                          _obscure ? Icons.visibility : Icons.visibility_off),
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14)),
                   ),
                 ),
                 if (_err.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  Text(_err, style: const TextStyle(color: kRed, fontWeight: FontWeight.bold, fontSize: 12)),
+                  Text(_err,
+                      style: const TextStyle(
+                          color: kRed,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12)),
                 ],
                 const SizedBox(height: 16),
                 SizedBox(
@@ -1895,10 +2556,13 @@ class _TeacherAuthScreenState extends State<TeacherAuthScreen> {
                       backgroundColor: kGoldDark,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
                     ),
                     onPressed: _submit,
-                    child: const Text('دخول لحلقتي فقط', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    child: const Text('دخول لحلقتي فقط',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 15)),
                   ),
                 ),
               ],
@@ -1911,7 +2575,8 @@ class _TeacherAuthScreenState extends State<TeacherAuthScreen> {
 }
 
 // ---------------------------------------------------------------------------
-// 4. Admin Dashboard (3 Tabs: الحلقات | النقاط + بحث الطلاب | التواصل)
+// 4. Admin Dashboard (3 Tabs: الحلقات | النقاط فقط بدون سوق | التواصل)
+//    Includes Safe Auto-Logout on Background / Inactivity
 // ---------------------------------------------------------------------------
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -1919,12 +2584,49 @@ class AdminDashboardScreen extends StatefulWidget {
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
-class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+class _AdminDashboardScreenState extends State<AdminDashboardScreen>
+    with WidgetsBindingObserver {
   int _tab = 0; // 0: Circles, 1: Points, 2: Contacts
   final _ptsSearchCtrl = TextEditingController();
   final _ptsAmountCtrl = TextEditingController(text: '20');
   final _ptsReasonCtrl = TextEditingController();
   String? _selectedStudentPair; // 'circleId::studentId'
+  Timer? _idleTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _resetIdleTimer();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _idleTimer?.cancel();
+    _ptsSearchCtrl.dispose();
+    _ptsAmountCtrl.dispose();
+    _ptsReasonCtrl.dispose();
+    super.dispose();
+  }
+
+  void _resetIdleTimer() {
+    _idleTimer?.cancel();
+    _idleTimer = Timer(const Duration(minutes: 15), _safeLogout);
+  }
+
+  void _safeLogout() {
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _safeLogout();
+    }
+  }
 
   void _openCircleDialog({CircleModel? existing}) {
     final nameC = TextEditingController(text: existing?.name ?? '');
@@ -1938,13 +2640,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          title: Text(existing == null ? 'إنشاء حلقة جديدة' : 'تعديل الحلقة', style: const TextStyle(fontWeight: FontWeight.w800)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          title: Text(existing == null ? 'إنشاء حلقة جديدة' : 'تعديل الحلقة',
+              style: const TextStyle(fontWeight: FontWeight.w800)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: nameC, decoration: const InputDecoration(labelText: 'اسم الحلقة *')),
+                TextField(
+                    controller: nameC,
+                    decoration:
+                        const InputDecoration(labelText: 'اسم الحلقة *')),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -1965,18 +2672,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                   ],
                 ),
-                TextField(controller: mosqueC, decoration: const InputDecoration(labelText: 'المسجد / المركز')),
-                TextField(controller: teacherC, decoration: const InputDecoration(labelText: 'اسم المعلم / المعلمة')),
-                TextField(controller: schedC, decoration: const InputDecoration(labelText: 'الأيام والأوقات')),
-                TextField(controller: passC, decoration: const InputDecoration(labelText: 'كلمة مرور الحلقة للمعلم *')),
+                TextField(
+                    controller: mosqueC,
+                    decoration:
+                        const InputDecoration(labelText: 'المسجد / المركز')),
+                TextField(
+                    controller: teacherC,
+                    decoration:
+                        const InputDecoration(labelText: 'اسم المعلم / المعلمة')),
+                TextField(
+                    controller: schedC,
+                    decoration:
+                        const InputDecoration(labelText: 'الأيام والأوقات')),
+                TextField(
+                    controller: passC,
+                    decoration: const InputDecoration(
+                        labelText: 'كلمة مرور الحلقة للمعلم *')),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('إلغاء')),
             ElevatedButton(
               onPressed: () {
-                if (nameC.text.trim().isEmpty || passC.text.trim().isEmpty) return;
+                if (nameC.text.trim().isEmpty || passC.text.trim().isEmpty) {
+                  return;
+                }
                 if (existing != null) {
                   existing.name = nameC.text.trim();
                   existing.gender = gender;
@@ -2015,9 +2738,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('📢 إعلان عام للجمعية'),
-        content: TextField(controller: c, maxLines: 3, decoration: const InputDecoration(hintText: 'اكتب الإعلان العام...')),
+        content: TextField(
+            controller: c,
+            maxLines: 3,
+            decoration: const InputDecoration(hintText: 'اكتب الإعلان العام...')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
           ElevatedButton(
             onPressed: () {
               appStore.generalAnnouncement = c.text.trim();
@@ -2036,7 +2763,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('💾 النسخة الاحتياطية'),
+        title: const Text('💾 النسخة الاحتياطية (JSON)'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -2044,27 +2771,33 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               icon: const Icon(Icons.copy),
               label: const Text('نسخ النسخة الاحتياطية الكاملة'),
               onPressed: () {
-                Clipboard.setData(ClipboardData(text: jsonEncode(appStore.toFullJson())));
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ النسخة الاحتياطية بنجاح')));
+                Clipboard.setData(
+                    ClipboardData(text: jsonEncode(appStore.toFullJson())));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('تم نسخ النسخة الاحتياطية JSON بنجاح')));
               },
             ),
             const Divider(height: 24),
             TextField(
               controller: c,
               maxLines: 3,
-              decoration: const InputDecoration(hintText: 'أو الصق نص النسخة الاحتياطية هنا للاستعادة...'),
+              decoration: const InputDecoration(
+                  hintText: 'أو الصق نص النسخة الاحتياطية JSON هنا للاستعادة...'),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
           ElevatedButton(
             onPressed: () async {
               final ok = await appStore.restoreFromJsonString(c.text.trim());
               if (!ctx.mounted) return;
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(ok ? 'تمت الاستعادة بنجاح' : 'نص النسخة غير صالح')),
+                SnackBar(
+                    content:
+                        Text(ok ? 'تمت الاستعادة بنجاح' : 'نص النسخة غير صالح')),
               );
             },
             child: const Text('استعادة'),
@@ -2074,67 +2807,111 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  void _openMarketItemDialog({MarketItemModel? existing}) {
-    final nameC = TextEditingController(text: existing?.name ?? '');
-    final typeC = TextEditingController(text: existing?.type ?? 'جائزة');
-    final costC = TextEditingController(text: '${existing?.cost ?? 30}');
-    final stockC = TextEditingController(text: '${existing?.stock ?? 10}');
-    bool unlimited = existing?.unlimited ?? false;
+  void _openTransferFromAdminDialog() {
+    if (appStore.circles.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يلزم وجود حلقتين على الأقل لنقل طالب')),
+      );
+      return;
+    }
+    final allEntries = <({CircleModel circle, StudentModel student})>[];
+    for (final c in appStore.circles) {
+      for (final s in c.students) {
+        allEntries.add((circle: c, student: s));
+      }
+    }
+    if (allEntries.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا يوجد طلاب للنقل حالياً')),
+      );
+      return;
+    }
+
+    String selectedPair = '${allEntries.first.circle.id}::${allEntries.first.student.id}';
+    String? targetCircleId = appStore.circles
+        .firstWhere((c) => c.id != allEntries.first.circle.id)
+        .id;
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          title: Text(existing == null ? 'إضافة جائزة للسوق' : 'تعديل الجائزة'),
-          content: SingleChildScrollView(
-            child: Column(
+        builder: (ctx, setS) {
+          final parts = selectedPair.split('::');
+          final fromCid = parts[0];
+          final targets =
+              appStore.circles.where((c) => c.id != fromCid).toList();
+          if (targetCircleId == null ||
+              !targets.any((t) => t.id == targetCircleId)) {
+            targetCircleId = targets.isNotEmpty ? targets.first.id : null;
+          }
+          return AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+            title: const Text('🔄 نقل طالب إلى حلقة أخرى',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: nameC, decoration: const InputDecoration(labelText: 'اسم الجائزة *')),
-                TextField(controller: typeC, decoration: const InputDecoration(labelText: 'نوع الجائزة')),
-                TextField(controller: costC, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'عدد النقاط *')),
-                const SizedBox(height: 8),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('كمية غير محدودة (∞)'),
-                  value: unlimited,
-                  onChanged: (v) => setS(() => unlimited = v),
+                DropdownButtonFormField<String>(
+                  value: selectedPair,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'اختر الطالب'),
+                  items: allEntries
+                      .map((e) => DropdownMenuItem(
+                            value: '${e.circle.id}::${e.student.id}',
+                            child: Text('${e.student.name} (${e.circle.name})',
+                                overflow: TextOverflow.ellipsis),
+                          ))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setS(() => selectedPair = v);
+                  },
                 ),
-                if (!unlimited)
-                  TextField(controller: stockC, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الكمية المتوفرة')),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: targetCircleId,
+                  isExpanded: true,
+                  decoration:
+                      const InputDecoration(labelText: 'الحلقة المستقبِلة'),
+                  items: targets
+                      .map((t) => DropdownMenuItem(
+                            value: t.id,
+                            child: Text(t.name, overflow: TextOverflow.ellipsis),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setS(() => targetCircleId = v),
+                ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
-            ElevatedButton(
-              onPressed: () {
-                if (nameC.text.trim().isEmpty) return;
-                final cost = (int.tryParse(costC.text) ?? 20).clamp(1, 999999);
-                final stock = (int.tryParse(stockC.text) ?? 0).clamp(0, 999999);
-                if (existing != null) {
-                  existing.name = nameC.text.trim();
-                  existing.type = typeC.text.trim();
-                  existing.cost = cost;
-                  existing.unlimited = unlimited;
-                  existing.stock = stock;
-                } else {
-                  appStore.marketItems.add(MarketItemModel(
-                    id: genId('mkt'),
-                    name: nameC.text.trim(),
-                    type: typeC.text.trim(),
-                    cost: cost,
-                    unlimited: unlimited,
-                    stock: stock,
-                  ));
-                }
-                appStore.saveMetaAndCircles([]);
-                Navigator.pop(ctx);
-              },
-              child: const Text('حفظ'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('إلغاء')),
+              ElevatedButton(
+                onPressed: targetCircleId == null
+                    ? null
+                    : () {
+                        final p = selectedPair.split('::');
+                        final fromC = appStore.getCircle(p[0]);
+                        final st = appStore.getStudent(fromC, p[1]);
+                        final toC = appStore.getCircle(targetCircleId!);
+                        if (fromC != null && st != null && toC != null) {
+                          fromC.students.removeWhere((x) => x.id == st.id);
+                          toC.students.add(st);
+                          appStore.saveMetaAndCircles([fromC.id, toC.id]);
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text(
+                                    'تم نقل ${st.name} إلى ${toC.name} بنجاح')),
+                          );
+                        }
+                      },
+                child: const Text('تأكيد النقل'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -2147,23 +2924,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          title: Text(existing == null ? 'إضافة طريقة تواصل' : 'تعديل طريقة تواصل'),
+          title: Text(
+              existing == null ? 'إضافة طريقة تواصل' : 'تعديل طريقة تواصل'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
                 value: type,
                 items: kContactTypes
-                    .map((t) => DropdownMenuItem(value: t['id'], child: Text('${t['icon']} ${t['label']}')))
+                    .map((t) => DropdownMenuItem(
+                        value: t['id'],
+                        child: Text('${t['icon']} ${t['label']}')))
                     .toList(),
                 onChanged: (v) => setS(() => type = v ?? 'whatsapp'),
               ),
-              TextField(controller: labelC, decoration: const InputDecoration(labelText: 'العنوان (اختياري)')),
-              TextField(controller: valC, decoration: const InputDecoration(labelText: 'الرقم أو الرابط أو النص *')),
+              TextField(
+                  controller: labelC,
+                  decoration:
+                      const InputDecoration(labelText: 'العنوان (اختياري)')),
+              TextField(
+                  controller: valC,
+                  decoration: const InputDecoration(
+                      labelText: 'الرقم أو الرابط أو النص *')),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('إلغاء')),
             ElevatedButton(
               onPressed: () {
                 if (valC.text.trim().isEmpty) return;
@@ -2192,43 +2980,51 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: appStore,
-      builder: (context, _) {
-        final pendingReqs = appStore.rewardRequests.where((r) => r.status == 'pending').toList();
-
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('🛡️ لوحة مدير الجمعية'),
-            backgroundColor: kBlueDeep,
-            foregroundColor: Colors.white,
-            actions: [
-              IconButton(icon: const Icon(Icons.refresh), onPressed: appStore.syncFromCloud),
-            ],
-          ),
-          body: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: SegmentedButton<int>(
-                  segments: [
-                    const ButtonSegment(value: 0, label: Text('الحلقات')),
-                    ButtonSegment(value: 1, label: Text('النقاط${pendingReqs.isNotEmpty ? ' (${pendingReqs.length})' : ''}')),
-                    const ButtonSegment(value: 2, label: Text('التواصل')),
-                  ],
-                  selected: {_tab},
-                  onSelectionChanged: (s) => setState(() => _tab = s.first),
+    return Listener(
+      onPointerDown: (_) => _resetIdleTimer(),
+      child: AnimatedBuilder(
+        animation: appStore,
+        builder: (context, _) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('🛡️ لوحة مدير الجمعية'),
+              backgroundColor: kBlueDeep,
+              foregroundColor: Colors.white,
+              actions: [
+                IconButton(
+                    icon: const Icon(Icons.refresh),
+                    tooltip: 'تحديث',
+                    onPressed: appStore.syncFromCloud),
+                IconButton(
+                    icon: const Icon(Icons.logout),
+                    tooltip: 'خروج آمن',
+                    onPressed: _safeLogout),
+              ],
+            ),
+            body: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: SegmentedButton<int>(
+                    segments: const [
+                      ButtonSegment(value: 0, label: Text('الحلقات')),
+                      ButtonSegment(value: 1, label: Text('النقاط')),
+                      ButtonSegment(value: 2, label: Text('التواصل')),
+                    ],
+                    selected: {_tab},
+                    onSelectionChanged: (s) => setState(() => _tab = s.first),
+                  ),
                 ),
-              ),
-              Expanded(
-                child: _tab == 0
-                    ? _buildCirclesTab()
-                    : (_tab == 1 ? _buildPointsTab(pendingReqs) : _buildContactsTab()),
-              ),
-            ],
-          ),
-        );
-      },
+                Expanded(
+                  child: _tab == 0
+                      ? _buildCirclesTab()
+                      : (_tab == 1 ? _buildPointsTab() : _buildContactsTab()),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -2240,7 +3036,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           children: [
             Expanded(
               child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(backgroundColor: kGoldDark, foregroundColor: Colors.white),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: kGoldDark, foregroundColor: Colors.white),
                 icon: const Icon(Icons.add),
                 label: const Text('حلقة جديدة'),
                 onPressed: () => _openCircleDialog(),
@@ -2249,7 +3046,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(backgroundColor: kBlueMain, foregroundColor: Colors.white),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: kBlueMain, foregroundColor: Colors.white),
                 icon: const Icon(Icons.campaign),
                 label: const Text('إعلان عام'),
                 onPressed: _openGeneralAnnDialog,
@@ -2258,17 +3056,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        OutlinedButton.icon(
-          icon: const Icon(Icons.backup),
-          label: const Text('💾 النسخة الاحتياطية (تصدير / استعادة)'),
-          onPressed: _openBackupRestoreDialog,
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.swap_horiz, size: 18),
+                label: const Text('نقل طالب'),
+                onPressed: _openTransferFromAdminDialog,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.backup, size: 18),
+                label: const Text('نسخة JSON'),
+                onPressed: _openBackupRestoreDialog,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         ...appStore.circles.map((c) {
           final pal = CirclePalette.forGender(c.gender);
           return Card(
             margin: const EdgeInsets.only(bottom: 10),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(
@@ -2276,32 +3089,104 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 children: [
                   Row(
                     children: [
-                      Expanded(child: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
-                      Chip(label: Text('${c.students.length} ${pal.studentsWord}', style: const TextStyle(fontSize: 11))),
+                      Expanded(
+                          child: Text(c.name,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w800, fontSize: 16))),
+                      Chip(
+                          backgroundColor: pal.soft,
+                          label: Text('${c.students.length} ${pal.studentsWord}',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: pal.deep))),
                     ],
                   ),
-                  Text('🕌 ${c.mosque} • 👤 ${c.teacher}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                  Text('🔑 كلمة مرور الحلقة: ${c.password}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kGoldDark)),
+                  Text('🕌 ${c.mosque} • 👤 ${c.teacher}',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text('🔑 كلمة مرور الحلقة: ${c.password}',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: kGoldDark)),
+                      ),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        icon: const Icon(Icons.copy, size: 16, color: kBlueMain),
+                        label: const Text('نسخ',
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: kBlueMain)),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: c.password));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content:
+                                    Text('تم نسخ كلمة مرور حلقة ${c.name}')),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: pal.main, foregroundColor: Colors.white),
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: pal.main,
+                              foregroundColor: Colors.white),
                           onPressed: () => Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => CircleDetailScreen(circleId: c.id, isAdmin: true)),
+                            MaterialPageRoute(
+                                builder: (_) => CircleDetailScreen(
+                                    circleId: c.id, isAdmin: true)),
                           ),
                           child: const Text('فتح الحلقة'),
                         ),
                       ),
                       const SizedBox(width: 6),
-                      IconButton(icon: const Icon(Icons.edit), onPressed: () => _openCircleDialog(existing: c)),
+                      IconButton(
+                          icon: const Icon(Icons.edit),
+                          onPressed: () => _openCircleDialog(existing: c)),
                       IconButton(
                         icon: const Icon(Icons.delete, color: kRed),
                         onPressed: () {
-                          appStore.circles.removeWhere((x) => x.id == c.id);
-                          appStore.saveMetaAndCircles([c.id]);
+                          showDialog(
+                            context: context,
+                            builder: (dCtx) => AlertDialog(
+                              title: const Text('تأكيد حذف الحلقة'),
+                              content: Text(
+                                  'هل تريد حذف حلقة "${c.name}" بجميع طلابها؟'),
+                              actions: [
+                                TextButton(
+                                    onPressed: () => Navigator.pop(dCtx),
+                                    child: const Text('إلغاء')),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                      backgroundColor: kRed,
+                                      foregroundColor: Colors.white),
+                                  onPressed: () {
+                                    appStore.circles
+                                        .removeWhere((x) => x.id == c.id);
+                                    appStore.saveMetaAndCircles([c.id]);
+                                    Navigator.pop(dCtx);
+                                  },
+                                  child: const Text('حذف'),
+                                ),
+                              ],
+                            ),
+                          );
                         },
                       ),
                     ],
@@ -2315,108 +3200,66 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildPointsTab(List<RewardRequestModel> pendingReqs) {
+  // Points Tab: Live student search to add/deduct points with reason ONLY (NO market, NO requests)
+  Widget _buildPointsTab() {
     final q = normalizeArabic(_ptsSearchCtrl.text);
     final allStudents = <({CircleModel circle, StudentModel student})>[];
     for (final c in appStore.circles) {
       for (final s in c.students) {
-        if (q.isEmpty || normalizeArabic(s.name).contains(q) || normalizeArabic(c.name).contains(q)) {
+        if (q.isEmpty ||
+            normalizeArabic(s.name).contains(q) ||
+            normalizeArabic(c.name).contains(q)) {
           allStudents.add((circle: c, student: s));
         }
       }
     }
-    final validValues = allStudents.map((x) => '${x.circle.id}::${x.student.id}').toList();
-    if (_selectedStudentPair == null || !validValues.contains(_selectedStudentPair)) {
+    allStudents.sort((a, b) =>
+        normalizeArabic(a.student.name).compareTo(normalizeArabic(b.student.name)));
+    final validValues =
+        allStudents.map((x) => '${x.circle.id}::${x.student.id}').toList();
+    if (_selectedStudentPair == null ||
+        !validValues.contains(_selectedStudentPair)) {
       _selectedStudentPair = validValues.isNotEmpty ? validValues.first : null;
+    }
+
+    StudentModel? selectedStudent;
+    CircleModel? selectedCircle;
+    if (_selectedStudentPair != null) {
+      final parts = _selectedStudentPair!.split('::');
+      selectedCircle = appStore.getCircle(parts[0]);
+      selectedStudent = appStore.getStudent(selectedCircle, parts[1]);
     }
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 4, 14, 24),
       children: [
-        if (pendingReqs.isNotEmpty) ...[
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('🎁 طلبات الجوائز الواردة (${pendingReqs.length})', style: const TextStyle(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 8),
-                  ...pendingReqs.map((r) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('${r.studentName} (${r.circleName})', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            Text('طلب: ${r.itemName} (${r.cost} نقطة)', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                            const SizedBox(height: 6),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(backgroundColor: kGreen, foregroundColor: Colors.white),
-                                    onPressed: () {
-                                      r.status = 'delivered';
-                                      appStore.saveMetaAndCircles([]);
-                                    },
-                                    child: const Text('✅ تم التسليم'),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: () {
-                                      r.status = 'cancelled';
-                                      final c = appStore.getCircle(r.circleId);
-                                      final s = appStore.getStudent(c, r.studentId);
-                                      if (s != null) {
-                                        s.points += r.cost;
-                                        s.pointsHistory.insert(0, PointsLogEntry(id: genId('ph'), delta: r.cost, reason: 'إرجاع نقاط (${r.itemName})', date: todayIso()));
-                                      }
-                                      for (final it in appStore.marketItems) {
-                                        if (it.id == r.itemId && !it.unlimited) it.stock++;
-                                      }
-                                      appStore.saveMetaAndCircles(c != null ? [c.id] : []);
-                                    },
-                                    child: const Text('✕ إلغاء وإرجاع', style: TextStyle(color: kRed)),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      )),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-        ],
-
-        // Grant Points with Live Student Search
         Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('⭐ تحويل نقاط مكافأة لطالب', style: TextStyle(fontWeight: FontWeight.w800)),
+                const Text('⭐ تحويل أو خصم النقاط لطالب',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                 const SizedBox(height: 10),
                 TextField(
                   controller: _ptsSearchCtrl,
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.search),
-                    hintText: 'ابحث باسم الطالب لتصفية القائمة...',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                    hintText: 'ابحث باسم الطالب أو الحلقة مباشرة...',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14)),
                     isDense: true,
                   ),
                 ),
                 const SizedBox(height: 10),
                 if (allStudents.isEmpty)
-                  const Text('لا توجد نتائج مطابقة', style: TextStyle(color: Colors.grey))
+                  const Text('لا توجد نتائج مطابقة',
+                      style: TextStyle(color: Colors.grey))
                 else
                   DropdownButtonFormField<String>(
                     value: _selectedStudentPair,
@@ -2424,7 +3267,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     items: allStudents
                         .map((x) => DropdownMenuItem(
                               value: '${x.circle.id}::${x.student.id}',
-                              child: Text('${x.student.name} — ${x.circle.name} (${x.student.points} نقطة)', overflow: TextOverflow.ellipsis),
+                              child: Text(
+                                  '${x.student.name} — ${x.circle.name} (${x.student.points} نقطة)',
+                                  overflow: TextOverflow.ellipsis),
                             ))
                         .toList(),
                     onChanged: (v) => setState(() => _selectedStudentPair = v),
@@ -2445,7 +3290,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Expanded(
                       child: TextField(
                         controller: _ptsReasonCtrl,
-                        decoration: const InputDecoration(labelText: 'السبب (بكشف الحساب)'),
+                        decoration: const InputDecoration(
+                            labelText: 'السبب (يظهر بكشف الحساب)'),
                       ),
                     ),
                   ],
@@ -2455,16 +3301,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   children: [
                     Expanded(
                       child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: kGoldDark, foregroundColor: Colors.white),
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: kGoldDark,
+                            foregroundColor: Colors.white),
                         onPressed: () => _applyPoints(1),
-                        child: const Text('➕ إضافة نقاط'),
+                        child: const Text('➕ تحويل نقاط'),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => _applyPoints(-1),
-                        child: const Text('➖ خصم', style: TextStyle(color: kRed)),
+                        child:
+                            const Text('➖ خصم نقاط', style: TextStyle(color: kRed)),
                       ),
                     ),
                   ],
@@ -2473,47 +3322,61 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 12),
-
-        // Market Rewards Management
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('🛍️ جوائز السوق (${appStore.marketItems.length})', style: const TextStyle(fontWeight: FontWeight.w800)),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('إضافة جائزة'),
-              onPressed: () => _openMarketItemDialog(),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        ...appStore.marketItems.map((it) {
-          final out = !it.unlimited && it.stock <= 0;
-          return Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: Text(
-                '${it.type} • ${it.cost} نقطة • ${it.unlimited ? '∞ غير محدودة' : (out ? 'نفذت الكمية' : 'متبقي ${it.stock}')}',
-                style: TextStyle(color: out ? kRed : Colors.grey, fontSize: 12),
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
+        if (selectedStudent != null) ...[
+          const SizedBox(height: 12),
+          Card(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  IconButton(icon: const Icon(Icons.edit, size: 20), onPressed: () => _openMarketItemDialog(existing: it)),
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: kRed, size: 20),
-                    onPressed: () {
-                      appStore.marketItems.removeWhere((x) => x.id == it.id);
-                      appStore.saveMetaAndCircles([]);
-                    },
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '📜 كشف نقاط: ${selectedStudent.name}',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Chip(
+                        backgroundColor: kGoldSoft,
+                        label: Text('⭐ ${selectedStudent.points} نقطة',
+                            style: const TextStyle(
+                                color: kGoldDark,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12)),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 8),
+                  if (selectedStudent.pointsHistory.isEmpty)
+                    const Text('لا توجد حركات نقاط مسجّلة لهذا الطالب بعد.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey))
+                  else
+                    ...selectedStudent.pointsHistory.take(15).map((h) => ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(h.reason,
+                              style: const TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.bold)),
+                          subtitle:
+                              Text(h.date, style: const TextStyle(fontSize: 11)),
+                          trailing: Text(
+                            '${h.delta >= 0 ? '+' : ''}${h.delta}',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: h.delta >= 0 ? kGreen : kRed),
+                          ),
+                        )),
                 ],
               ),
             ),
-          );
-        }),
+          ),
+        ],
       ],
     );
   }
@@ -2542,7 +3405,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _ptsReasonCtrl.clear();
     appStore.saveCircle(c.id);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(sign > 0 ? 'تم تحويل +$amt نقطة لـ ${s.name}' : 'تم خصم $amt نقطة')),
+      SnackBar(
+          content: Text(sign > 0
+              ? 'تم تحويل +$amt نقطة لـ ${s.name}'
+              : 'تم خصم $amt نقطة من ${s.name}')),
     );
   }
 
@@ -2551,24 +3417,31 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       padding: const EdgeInsets.fromLTRB(14, 4, 14, 24),
       children: [
         ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(backgroundColor: kGoldDark, foregroundColor: Colors.white),
+          style: ElevatedButton.styleFrom(
+              backgroundColor: kGoldDark, foregroundColor: Colors.white),
           icon: const Icon(Icons.add),
           label: const Text('إضافة طريقة تواصل'),
           onPressed: () => _openContactDialog(),
         ),
         const SizedBox(height: 12),
         ...appStore.contacts.map((ct) {
-          final meta = kContactTypes.firstWhere((e) => e['id'] == ct.type, orElse: () => kContactTypes.last);
+          final meta = kContactTypes.firstWhere((e) => e['id'] == ct.type,
+              orElse: () => kContactTypes.last);
           return Card(
             margin: const EdgeInsets.only(bottom: 8),
             child: ListTile(
-              leading: Text(meta['icon'] ?? '📍', style: const TextStyle(fontSize: 22)),
-              title: Text(ct.label.isNotEmpty ? ct.label : (meta['label'] ?? ''), style: const TextStyle(fontWeight: FontWeight.w800)),
+              leading:
+                  Text(meta['icon'] ?? '📍', style: const TextStyle(fontSize: 22)),
+              title: Text(
+                  ct.label.isNotEmpty ? ct.label : (meta['label'] ?? ''),
+                  style: const TextStyle(fontWeight: FontWeight.w800)),
               subtitle: Text(ct.value),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  IconButton(icon: const Icon(Icons.edit, size: 20), onPressed: () => _openContactDialog(existing: ct)),
+                  IconButton(
+                      icon: const Icon(Icons.edit, size: 20),
+                      onPressed: () => _openContactDialog(existing: ct)),
                   IconButton(
                     icon: const Icon(Icons.delete, color: kRed, size: 20),
                     onPressed: () {
@@ -2587,32 +3460,415 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 }
 
 // ---------------------------------------------------------------------------
-// 5. Circle Detail Screen (Teacher Sees ONLY His Circle)
+// Reusable 114-Surah Recitation Picker & Editor (حفظ جديد / مراجعة + من/إلى آية + كاملة)
 // ---------------------------------------------------------------------------
-class CircleDetailScreen extends StatelessWidget {
+Future<({bool cleared, TasmiEntry? entry})?> showTasmiEditorSheet({
+  required BuildContext context,
+  required String title,
+  TasmiEntry? initial,
+  bool showGradeAndNote = true,
+  bool allowClear = true,
+}) async {
+  String type = initial?.type ?? 'new'; // 'new' | 'review'
+  String grade = (initial != null && kGrades.contains(initial.grade))
+      ? initial.grade
+      : 'ممتاز';
+  final textC = TextEditingController(text: initial?.text ?? '');
+  final noteC = TextEditingController(text: initial?.note ?? '');
+  final surahSearchC = TextEditingController();
+  final fromAyahC = TextEditingController();
+  final toAyahC = TextEditingController();
+  SurahInfo? selectedSurah;
+
+  void syncSurahText({bool fullSurah = false}) {
+    final s = selectedSurah;
+    if (s == null) return;
+    if (fullSurah) {
+      fromAyahC.text = '1';
+      toAyahC.text = '${s.ayahs}';
+      textC.text = 'سورة ${s.name} (كاملة)';
+      return;
+    }
+    final fromVal = (int.tryParse(fromAyahC.text.trim()) ?? 1).clamp(1, s.ayahs);
+    final toVal =
+        (int.tryParse(toAyahC.text.trim()) ?? s.ayahs).clamp(fromVal, s.ayahs);
+    if (fromVal == 1 && toVal == s.ayahs) {
+      textC.text = 'سورة ${s.name} (كاملة)';
+    } else if (fromVal == toVal) {
+      textC.text = 'سورة ${s.name} (آية $fromVal)';
+    } else {
+      textC.text = 'سورة ${s.name} (من $fromVal إلى $toVal)';
+    }
+  }
+
+  return showModalBottomSheet<({bool cleared, TasmiEntry? entry})>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Theme.of(context).cardColor,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+    ),
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setS) {
+        final q = normalizeArabic(surahSearchC.text);
+        final filteredSurahs = kSurahs.where((s) {
+          if (q.isEmpty) return true;
+          return normalizeArabic(s.name).contains(q) || '${s.number}' == q;
+        }).toList();
+
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+              16, 16, 16, MediaQuery.of(ctx).viewInsets.bottom + 20),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(title,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w800)),
+                    ),
+                    IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                // Type toggle: حفظ جديد (Blue) vs مراجعة (Gold)
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () => setS(() => type = 'new'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: type == 'new'
+                                ? kBlueMain
+                                : kBlueMain.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: kBlueMain,
+                                width: type == 'new' ? 2 : 1),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '📘 حفظ جديد',
+                              style: TextStyle(
+                                color: type == 'new' ? Colors.white : kBlueDeep,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () => setS(() => type = 'review'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: type == 'review'
+                                ? kGoldDark
+                                : kGold.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: kGoldDark,
+                                width: type == 'review' ? 2 : 1),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '📙 مراجعة',
+                              style: TextStyle(
+                                color:
+                                    type == 'review' ? Colors.white : kGoldDark,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // 114-Surah Searchable Picker
+                TextField(
+                  controller: surahSearchC,
+                  onChanged: (_) => setS(() {}),
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    hintText: 'ابحث في الـ 114 سورة بالاسم أو الرقم...',
+                    isDense: true,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 126,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(ctx).scaffoldBackgroundColor,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: ListView.builder(
+                      itemCount: filteredSurahs.length,
+                      itemBuilder: (_, idx) {
+                        final s = filteredSurahs[idx];
+                        final isSel = selectedSurah?.number == s.number;
+                        return ListTile(
+                          dense: true,
+                          selected: isSel,
+                          selectedTileColor: kBlueMain.withValues(alpha: 0.14),
+                          title: Text('${s.number}. سورة ${s.name}',
+                              style: TextStyle(
+                                  fontWeight: isSel
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                  fontSize: 13)),
+                          trailing: Text('${s.ayahs} آية',
+                              style: const TextStyle(
+                                  fontSize: 11, color: Colors.grey)),
+                          onTap: () {
+                            setS(() {
+                              selectedSurah = s;
+                              fromAyahC.text = '1';
+                              toAyahC.text = '${s.ayahs}';
+                              syncSurahText(fullSurah: true);
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ),
+
+                // From Ayah / To Ayah + كاملة button
+                if (selectedSurah != null) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: fromAyahC,
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
+                          onChanged: (_) => setS(() => syncSurahText()),
+                          decoration: InputDecoration(
+                            labelText: 'من آية',
+                            isDense: true,
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: toAyahC,
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
+                          onChanged: (_) => setS(() => syncSurahText()),
+                          decoration: InputDecoration(
+                            labelText: 'إلى آية (حتى ${selectedSurah!.ayahs})',
+                            isDense: true,
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              type == 'review' ? kGoldDark : kBlueMain,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () =>
+                            setS(() => syncSurahText(fullSurah: true)),
+                        child: const Text('كاملة',
+                            style: TextStyle(fontWeight: FontWeight.w800)),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 10),
+
+                // Resulting Editable Recitation Text
+                TextField(
+                  controller: textC,
+                  decoration: InputDecoration(
+                    labelText: 'نص الورد / السورة والآيات',
+                    hintText: 'مثال: سورة الملك (من 1 إلى 15)',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    isDense: true,
+                  ),
+                ),
+
+                if (showGradeAndNote) ...[
+                  const SizedBox(height: 10),
+                  const Text('التقييم',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: kGrades.map((g) {
+                      final sel = grade == g;
+                      return ChoiceChip(
+                        label: Text(g,
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: sel ? Colors.white : null)),
+                        selected: sel,
+                        selectedColor: kBlueMain,
+                        onSelected: (_) => setS(() => grade = g),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: noteC,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      labelText: 'ملاحظة لولي الأمر (اختياري)',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      isDense: true,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    if (allowClear) ...[
+                      TextButton(
+                        onPressed: () =>
+                            Navigator.pop(ctx, (cleared: true, entry: null)),
+                        child:
+                            const Text('مسح', style: TextStyle(color: kRed)),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              type == 'review' ? kGoldDark : kBlueMain,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                        ),
+                        onPressed: () {
+                          final txt = textC.text.trim();
+                          if (txt.isEmpty) {
+                            Navigator.pop(ctx, (cleared: true, entry: null));
+                          } else {
+                            Navigator.pop(
+                              ctx,
+                              (
+                                cleared: false,
+                                entry: TasmiEntry(
+                                  text: txt,
+                                  type: type,
+                                  grade: grade,
+                                  note: noteC.text.trim(),
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        child: const Text('حفظ التسميع',
+                            style: TextStyle(fontWeight: FontWeight.w800)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 5. Circle Detail Screen (Teacher Sees ONLY His Circle)
+//    Includes: Quick Batch Screen, Bulk Student Paste, Alphabetical Sort & Search
+// ---------------------------------------------------------------------------
+class CircleDetailScreen extends StatefulWidget {
   final String circleId;
   final bool isAdmin;
 
-  const CircleDetailScreen({super.key, required this.circleId, required this.isAdmin});
+  const CircleDetailScreen(
+      {super.key, required this.circleId, required this.isAdmin});
 
-  void _openStudentDialog(BuildContext context, CircleModel c, {StudentModel? existing}) {
+  @override
+  State<CircleDetailScreen> createState() => _CircleDetailScreenState();
+}
+
+class _CircleDetailScreenState extends State<CircleDetailScreen> {
+  final _searchCtrl = TextEditingController();
+  bool _sortAlpha = true;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _openStudentDialog(BuildContext context, CircleModel c,
+      {StudentModel? existing}) {
     final nameC = TextEditingController(text: existing?.name ?? '');
     final ageC = TextEditingController(text: existing?.age ?? '');
     final juzC = TextEditingController(text: '${existing?.juzCount ?? 0}');
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(existing == null ? 'إضافة جديد' : 'تعديل البيانات'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: nameC, decoration: const InputDecoration(labelText: 'الاسم الثلاثي *')),
-            TextField(controller: ageC, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'العمر')),
-            TextField(controller: juzC, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الأجزاء المحفوظة (0-30)')),
+            TextField(
+                controller: nameC,
+                decoration: const InputDecoration(labelText: 'الاسم الثلاثي *')),
+            TextField(
+                controller: ageC,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'العمر')),
+            TextField(
+                controller: juzC,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                    labelText: 'الأجزاء المحفوظة (0-30)')),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
           ElevatedButton(
             onPressed: () {
               if (nameC.text.trim().isEmpty) return;
@@ -2643,7 +3899,74 @@ class CircleDetailScreen extends StatelessWidget {
     );
   }
 
-  void _openTransferDialog(BuildContext context, CircleModel fromC, StudentModel st) {
+  void _openBulkAddDialog(BuildContext context, CircleModel c, CirclePalette pal) {
+    final bulkC = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Text('📋 إضافة مجموعة ${pal.studentsWord} دفعة واحدة',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('الصق الأسماء هنا — كل اسم في سطر مستقل:',
+                style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: bulkC,
+              maxLines: 7,
+              decoration: InputDecoration(
+                hintText: 'محمد أحمد العلي\nعمر خالد الحسن\nيوسف سعيد...',
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: pal.main, foregroundColor: Colors.white),
+            onPressed: () {
+              final lines = bulkC.text
+                  .split(RegExp(r'\r?\n'))
+                  .map((l) => l.trim())
+                  .where((l) => l.isNotEmpty)
+                  .toList();
+              if (lines.isEmpty) return;
+              final now = DateTime.now();
+              for (final name in lines) {
+                final em = MonthRecord.empty(now.year, now.month);
+                c.students.add(StudentModel(
+                  id: genId('st'),
+                  name: name,
+                  age: '',
+                  juzCount: 0,
+                  activeMonthKey: em.key,
+                  months: {em.key: em},
+                ));
+              }
+              appStore.saveCircle(c.id);
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                    content:
+                        Text('تمت إضافة ${lines.length} إلى ${c.name} بنجاح')),
+              );
+            },
+            child: const Text('إضافة الكل'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openTransferDialog(
+      BuildContext context, CircleModel fromC, StudentModel st) {
     final targets = appStore.circles.where((x) => x.id != fromC.id).toList();
     if (targets.isEmpty) return;
     String targetId = targets.first.id;
@@ -2654,11 +3977,15 @@ class CircleDetailScreen extends StatelessWidget {
           title: const Text('نقل إلى حلقة أخرى'),
           content: DropdownButtonFormField<String>(
             value: targetId,
-            items: targets.map((t) => DropdownMenuItem(value: t.id, child: Text(t.name))).toList(),
+            items: targets
+                .map((t) => DropdownMenuItem(value: t.id, child: Text(t.name)))
+                .toList(),
             onChanged: (v) => setS(() => targetId = v ?? targetId),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('إلغاء')),
             ElevatedButton(
               onPressed: () {
                 final toC = appStore.getCircle(targetId);
@@ -2682,9 +4009,20 @@ class CircleDetailScreen extends StatelessWidget {
     return AnimatedBuilder(
       animation: appStore,
       builder: (context, _) {
-        final c = appStore.getCircle(circleId);
-        if (c == null) return const Scaffold(body: Center(child: Text('الحلقة غير موجودة')));
+        final c = appStore.getCircle(widget.circleId);
+        if (c == null) {
+          return const Scaffold(body: Center(child: Text('الحلقة غير موجودة')));
+        }
         final pal = CirclePalette.forGender(c.gender);
+        final q = normalizeArabic(_searchCtrl.text);
+        final list = c.students.where((st) {
+          if (q.isEmpty) return true;
+          return normalizeArabic(st.name).contains(q);
+        }).toList();
+        if (_sortAlpha) {
+          list.sort((a, b) =>
+              normalizeArabic(a.name).compareTo(normalizeArabic(b.name)));
+        }
 
         return Scaffold(
           appBar: AppBar(
@@ -2694,6 +4032,7 @@ class CircleDetailScreen extends StatelessWidget {
             actions: [
               IconButton(
                 icon: const Icon(Icons.campaign),
+                tooltip: 'إعلان الحلقة',
                 onPressed: () {
                   final ctrl = TextEditingController(text: c.announcement);
                   showDialog(
@@ -2702,7 +4041,9 @@ class CircleDetailScreen extends StatelessWidget {
                       title: const Text('إعلان الحلقة'),
                       content: TextField(controller: ctrl, maxLines: 3),
                       actions: [
-                        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                        TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('إلغاء')),
                         ElevatedButton(
                           onPressed: () {
                             c.announcement = ctrl.text.trim();
@@ -2716,7 +4057,9 @@ class CircleDetailScreen extends StatelessWidget {
                   );
                 },
               ),
-              IconButton(icon: const Icon(Icons.refresh), onPressed: appStore.syncFromCloud),
+              IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: appStore.syncFromCloud),
             ],
           ),
           floatingActionButton: FloatingActionButton.extended(
@@ -2729,52 +4072,689 @@ class CircleDetailScreen extends StatelessWidget {
           body: ListView(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 90),
             children: [
+              // Quick Batch Screen + Bulk Paste Actions
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: pal.main,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
+                      ),
+                      icon: const Icon(Icons.bolt, size: 20),
+                      label: const Text('التسميع والحضور السريع للكل',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w800, fontSize: 12.5)),
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => BatchDailyScreen(circleId: c.id)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 2,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
+                      ),
+                      icon: const Icon(Icons.group_add, size: 18),
+                      label: const Text('إضافة دفعة',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w800, fontSize: 12.5)),
+                      onPressed: () => _openBulkAddDialog(context, c, pal),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // Quick In-Circle Search + Alphabetical Sort Toggle
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchCtrl,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        hintText: 'بحث سريع داخل الحلقة...',
+                        isDense: true,
+                        filled: true,
+                        fillColor: Theme.of(context).cardColor,
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilterChip(
+                    selected: _sortAlpha,
+                    selectedColor: pal.soft,
+                    label: Text(
+                      'أ-ي',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: _sortAlpha ? pal.deep : null),
+                    ),
+                    onSelected: (v) => setState(() => _sortAlpha = v),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
               if (c.announcement.isNotEmpty)
                 Card(
                   margin: const EdgeInsets.only(bottom: 12),
                   child: ListTile(
                     leading: const Text('📢', style: TextStyle(fontSize: 20)),
-                    title: const Text('إعلان الحلقة', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                    title: const Text('إعلان الحلقة',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 12)),
                     subtitle: Text(c.announcement),
                   ),
                 ),
-              ...c.students.map((st) {
-                final rec = st.months[st.activeMonthKey];
-                final an = rec != null ? AiAnalysis.compute(rec, null) : null;
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                  child: ListTile(
-                    title: Text(st.name, style: const TextStyle(fontWeight: FontWeight.w800)),
-                    subtitle: Text('الحفظ: ${st.juzCount}/30 جزء • التقييم: ${an?.overallScore ?? 0}%'),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => StudentProfileScreen(circleId: c.id, studentId: st.id, readOnly: false),
-                      ),
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(icon: const Icon(Icons.edit, size: 20), onPressed: () => _openStudentDialog(context, c, existing: st)),
-                        if (isAdmin)
-                          IconButton(icon: const Icon(Icons.swap_horiz, size: 20), onPressed: () => _openTransferDialog(context, c, st)),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: kRed, size: 20),
-                          onPressed: () {
-                            c.students.removeWhere((x) => x.id == st.id);
-                            appStore.saveCircle(c.id);
-                          },
-                        ),
-                      ],
+
+              if (list.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32),
+                  child: Center(
+                    child: Text(
+                      c.students.isEmpty
+                          ? 'لا يوجد ${pal.studentsWord} في هذه الحلقة بعد'
+                          : 'لا توجد نتائج مطابقة للبحث',
+                      style: const TextStyle(color: Colors.grey),
                     ),
                   ),
-                );
-              }),
+                )
+              else
+                ...list.map((st) {
+                  final rec = st.months[st.activeMonthKey];
+                  final an = rec != null ? AiAnalysis.compute(rec, null) : null;
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18)),
+                    child: ListTile(
+                      title: Text(st.name,
+                          style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text(
+                          'الحفظ: ${st.juzCount}/30 جزء • التقييم: ${an?.overallScore ?? 0}%'),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => StudentProfileScreen(
+                              circleId: c.id,
+                              studentId: st.id,
+                              readOnly: false),
+                        ),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                              icon: const Icon(Icons.edit, size: 20),
+                              onPressed: () =>
+                                  _openStudentDialog(context, c, existing: st)),
+                          if (widget.isAdmin)
+                            IconButton(
+                                icon: const Icon(Icons.swap_horiz, size: 20),
+                                onPressed: () =>
+                                    _openTransferDialog(context, c, st)),
+                          IconButton(
+                            icon:
+                                const Icon(Icons.delete, color: kRed, size: 20),
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (dCtx) => AlertDialog(
+                                  title: const Text('تأكيد الحذف'),
+                                  content: Text(
+                                      'هل تريد حذف ${st.name} من الحلقة؟'),
+                                  actions: [
+                                    TextButton(
+                                        onPressed: () => Navigator.pop(dCtx),
+                                        child: const Text('إلغاء')),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                          backgroundColor: kRed,
+                                          foregroundColor: Colors.white),
+                                      onPressed: () {
+                                        c.students.removeWhere(
+                                            (x) => x.id == st.id);
+                                        appStore.saveCircle(c.id);
+                                        Navigator.pop(dCtx);
+                                      },
+                                      child: const Text('حذف'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 5B. Batch Quick Recitation & Attendance Screen (التسميع والحضور السريع للكل)
+//     Includes: "تطبيق نفس الورد للكل" + Unsaved Changes Exit Warning (PopScope)
+// ---------------------------------------------------------------------------
+class BatchDailyScreen extends StatefulWidget {
+  final String circleId;
+  const BatchDailyScreen({super.key, required this.circleId});
+
+  @override
+  State<BatchDailyScreen> createState() => _BatchDailyScreenState();
+}
+
+class _BatchDailyScreenState extends State<BatchDailyScreen> {
+  int _selectedDay = 1;
+  int _daysVisible = kDefaultDaysCount;
+  bool _dirty = false;
+
+  // Draft maps keyed by studentId for the currently selected day
+  final Map<String, String> _draftAttendance = {};
+  final Map<String, TasmiEntry?> _draftTasmi = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDayFromStore(1);
+  }
+
+  void _loadDayFromStore(int day) {
+    final c = appStore.getCircle(widget.circleId);
+    if (c == null) return;
+    int maxDays = kDefaultDaysCount;
+    _draftAttendance.clear();
+    _draftTasmi.clear();
+    for (final st in c.students) {
+      final rec = st.months[st.activeMonthKey];
+      if (rec != null) {
+        if (rec.daysCount > maxDays) maxDays = rec.daysCount;
+        _draftAttendance[st.id] = rec.attendance['$day'] ?? 'none';
+        _draftTasmi[st.id] = rec.tasmi['$day']?.copy();
+      } else {
+        _draftAttendance[st.id] = 'none';
+        _draftTasmi[st.id] = null;
+      }
+    }
+    setState(() {
+      _selectedDay = day;
+      _daysVisible = maxDays.clamp(kDefaultDaysCount, kMaxDaysCount);
+      _dirty = false;
+    });
+  }
+
+  void _saveAll() {
+    final c = appStore.getCircle(widget.circleId);
+    if (c == null) return;
+    for (final st in c.students) {
+      final rec = st.months[st.activeMonthKey];
+      if (rec == null || rec.archived) continue;
+      if (_selectedDay > rec.daysCount) {
+        rec.daysCount = _selectedDay.clamp(kDefaultDaysCount, kMaxDaysCount);
+      }
+      if (_draftAttendance.containsKey(st.id)) {
+        rec.attendance['$_selectedDay'] = _draftAttendance[st.id]!;
+      }
+      if (_draftTasmi.containsKey(st.id)) {
+        rec.tasmi['$_selectedDay'] = _draftTasmi[st.id]?.copy();
+      }
+    }
+    appStore.saveCircle(c.id);
+    setState(() => _dirty = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('تم حفظ حضور وتسميع اليوم $_selectedDay للجميع')),
+    );
+  }
+
+  Future<bool> _confirmDiscardOrSave() async {
+    if (!_dirty) return true;
+    final res = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('⚠️ تنبيه قبل الخروج',
+            style: TextStyle(fontWeight: FontWeight.w800)),
+        content: const Text(
+            'توجد تعديلات في الحضور أو التسميع لم يتم حفظها بعد. ماذا تريد أن تفعل؟'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, 'stay'),
+              child: const Text('متابعة التعديل')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, 'discard'),
+              child:
+                  const Text('خروج بدون حفظ', style: TextStyle(color: kRed))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: kGreen, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, 'save'),
+            child: const Text('حفظ والخروج'),
+          ),
+        ],
+      ),
+    );
+    if (res == 'save') {
+      _saveAll();
+      return true;
+    }
+    return res == 'discard';
+  }
+
+  Future<void> _applySameWirdToAll(CircleModel c) async {
+    final res = await showTasmiEditorSheet(
+      context: context,
+      title: 'تطبيق نفس الورد للكل — اليوم $_selectedDay',
+      showGradeAndNote: false,
+      allowClear: false,
+    );
+    if (res == null || res.cleared || res.entry == null) return;
+    final template = res.entry!;
+    setState(() {
+      for (final st in c.students) {
+        final existing = _draftTasmi[st.id];
+        _draftTasmi[st.id] = TasmiEntry(
+          text: template.text,
+          type: template.type,
+          grade: existing?.grade ?? 'ممتاز',
+          note: existing?.note ?? '',
+        );
+      }
+      _dirty = true;
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(
+                'تم تطبيق (${template.typeLabel}: ${template.text}) للجميع — اضغط حفظ الكل')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = appStore.getCircle(widget.circleId);
+    if (c == null) {
+      return const Scaffold(body: Center(child: Text('الحلقة غير موجودة')));
+    }
+    final pal = CirclePalette.forGender(c.gender);
+    final sorted = List<StudentModel>.from(c.students)
+      ..sort((a, b) =>
+          normalizeArabic(a.name).compareTo(normalizeArabic(b.name)));
+
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final ok = await _confirmDiscardOrSave();
+        if (ok && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('التسميع والحضور السريع للكل'),
+          backgroundColor: pal.deep,
+          foregroundColor: Colors.white,
+          actions: [
+            TextButton.icon(
+              onPressed: _saveAll,
+              icon: const Icon(Icons.save, color: Colors.white, size: 18),
+              label: const Text('حفظ الكل',
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            // Day Selector Strip (1..daysVisible + Add Day up to 30)
+            Container(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              color: Theme.of(context).cardColor,
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: 38,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        ...List.generate(_daysVisible, (idx) {
+                          final d = idx + 1;
+                          final sel = d == _selectedDay;
+                          return Padding(
+                            padding: const EdgeInsets.only(left: 6),
+                            child: ChoiceChip(
+                              label: Text('يوم $d',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: sel ? Colors.white : null)),
+                              selected: sel,
+                              selectedColor: pal.main,
+                              onSelected: (_) async {
+                                if (d == _selectedDay) return;
+                                final ok = await _confirmDiscardOrSave();
+                                if (ok) _loadDayFromStore(d);
+                              },
+                            ),
+                          );
+                        }),
+                        if (_daysVisible < kMaxDaysCount)
+                          ActionChip(
+                            label: Text('+ يوم ${_daysVisible + 1}',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: pal.deep)),
+                            onPressed: () {
+                              setState(() {
+                                _daysVisible = (_daysVisible + 1)
+                                    .clamp(kDefaultDaysCount, kMaxDaysCount);
+                              });
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kGoldDark,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
+                          ),
+                          icon: const Icon(Icons.menu_book, size: 18),
+                          label: const Text('تطبيق نفس الورد للكل',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w800, fontSize: 12.5)),
+                          onPressed: () => _applySameWirdToAll(c),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                        ),
+                        icon: const Icon(Icons.check_circle,
+                            color: kGreen, size: 18),
+                        label: const Text('الكل حاضر',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                                color: kGreen)),
+                        onPressed: () {
+                          setState(() {
+                            for (final st in sorted) {
+                              _draftAttendance[st.id] = 'present';
+                            }
+                            _dirty = true;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Students Batch List
+            Expanded(
+              child: sorted.isEmpty
+                  ? const Center(child: Text('لا يوجد طلاب في الحلقة بعد'))
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 90),
+                      itemCount: sorted.length,
+                      itemBuilder: (_, idx) {
+                        final st = sorted[idx];
+                        final att = _draftAttendance[st.id] ?? 'none';
+                        final tasmi = _draftTasmi[st.id];
+                        final hasTasmi =
+                            tasmi != null && tasmi.text.trim().isNotEmpty;
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18)),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        '${idx + 1}. ${st.name}',
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 14.5),
+                                      ),
+                                    ),
+                                    // Attendance 3-state quick pills
+                                    _attPill(
+                                      label: 'حاضر',
+                                      color: kGreen,
+                                      selected: att == 'present',
+                                      onTap: () => setState(() {
+                                        _draftAttendance[st.id] =
+                                            att == 'present'
+                                                ? 'none'
+                                                : 'present';
+                                        _dirty = true;
+                                      }),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    _attPill(
+                                      label: 'بعذر',
+                                      color: kAmber,
+                                      selected: att == 'excused',
+                                      onTap: () => setState(() {
+                                        _draftAttendance[st.id] =
+                                            att == 'excused'
+                                                ? 'none'
+                                                : 'excused';
+                                        _dirty = true;
+                                      }),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    _attPill(
+                                      label: 'غائب',
+                                      color: kRed,
+                                      selected: att == 'absent',
+                                      onTap: () => setState(() {
+                                        _draftAttendance[st.id] =
+                                            att == 'absent' ? 'none' : 'absent';
+                                        _dirty = true;
+                                      }),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: () async {
+                                    final res = await showTasmiEditorSheet(
+                                      context: context,
+                                      title:
+                                          'تسميع ${st.name} — اليوم $_selectedDay',
+                                      initial: tasmi,
+                                    );
+                                    if (res == null) return;
+                                    setState(() {
+                                      _draftTasmi[st.id] =
+                                          res.cleared ? null : res.entry;
+                                      _dirty = true;
+                                    });
+                                  },
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: hasTasmi
+                                          ? (tasmi.isReview
+                                              ? kGoldSoft
+                                              : kBlueSoft)
+                                          : Theme.of(context)
+                                              .scaffoldBackgroundColor,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: hasTasmi
+                                            ? (tasmi.isReview
+                                                ? kGold
+                                                : kBlueMain)
+                                            : Colors.grey.withValues(alpha: 0.25),
+                                      ),
+                                    ),
+                                    child: hasTasmi
+                                        ? Row(
+                                            children: [
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 7,
+                                                        vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: tasmi.isReview
+                                                      ? kGoldDark
+                                                      : kBlueMain,
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: Text(
+                                                  tasmi.typeLabel,
+                                                  style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 10.5,
+                                                      fontWeight:
+                                                          FontWeight.w800),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  tasmi.text,
+                                                  style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      fontSize: 12.5,
+                                                      color: kNavy),
+                                                ),
+                                              ),
+                                              Text(
+                                                tasmi.grade,
+                                                style: TextStyle(
+                                                    fontSize: 11.5,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: tasmi.isReview
+                                                        ? kGoldDark
+                                                        : kBlueDeep),
+                                              ),
+                                            ],
+                                          )
+                                        : const Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text('اضغط لتسجيل التسميع...',
+                                                  style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.grey)),
+                                              Icon(Icons.edit_note,
+                                                  size: 18, color: Colors.grey),
+                                            ],
+                                          ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _dirty ? kGreen : pal.main,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+              ),
+              icon: const Icon(Icons.check_circle),
+              label: Text(
+                _dirty
+                    ? 'حفظ تعديلات اليوم $_selectedDay للجميع'
+                    : 'تم حفظ اليوم $_selectedDay',
+                style:
+                    const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+              ),
+              onPressed: _saveAll,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _attPill({
+    required String label,
+    required Color color,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? color : color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: selected ? 1 : 0.4)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : color,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -2804,29 +4784,71 @@ class PinnedStudentsScreen extends StatelessWidget {
             foregroundColor: Colors.white,
             actions: [
               TextButton.icon(
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentSearchScreen())),
+                onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const StudentSearchScreen())),
                 icon: const Icon(Icons.add, color: Colors.white),
-                label: const Text('إضافة طالب', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                label: const Text('إضافة طالب',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
           body: ListView(
             padding: const EdgeInsets.all(14),
             children: [
+              if (resolved.isEmpty)
+                Card(
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        const Text('📌 لا يوجد أبناء مثبّتون حالياً',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w800, fontSize: 15)),
+                        const SizedBox(height: 8),
+                        const Text(
+                            'ابحث عن ابنك أو ابنتك واضغط زر التثبيت للوصول السريع.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12.5, color: Colors.grey)),
+                        const SizedBox(height: 14),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: kBlueMain,
+                              foregroundColor: Colors.white),
+                          icon: const Icon(Icons.search),
+                          label: const Text('البحث عن طالب'),
+                          onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const StudentSearchScreen())),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               if (resolved.isNotEmpty)
                 Card(
                   margin: const EdgeInsets.only(bottom: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
                   child: Padding(
                     padding: const EdgeInsets.all(14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('🔔 آخر التحديثات', style: TextStyle(fontWeight: FontWeight.w800, color: kGoldDark)),
+                        const Text('🔔 آخر التحديثات',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w800, color: kGoldDark)),
                         const SizedBox(height: 8),
                         ...resolved.map((item) => Padding(
                               padding: const EdgeInsets.only(bottom: 6),
-                              child: Text('${item.student.name}: ${appStore.latestActivitySummary(item.student)}', style: const TextStyle(fontSize: 13)),
+                              child: Text(
+                                  '${item.student.name}: ${appStore.latestActivitySummary(item.student)}',
+                                  style: const TextStyle(fontSize: 13)),
                             )),
                       ],
                     ),
@@ -2836,21 +4858,42 @@ class PinnedStudentsScreen extends StatelessWidget {
                 final pal = CirclePalette.forGender(item.circle.gender);
                 return Card(
                   margin: const EdgeInsets.only(bottom: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18)),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => StudentProfileScreen(circleId: item.circle.id, studentId: item.student.id, readOnly: true),
+                        builder: (_) => StudentProfileScreen(
+                            circleId: item.circle.id,
+                            studentId: item.student.id,
+                            readOnly: true),
                       ),
                     ),
                     child: Container(
-                      decoration: BoxDecoration(border: Border(right: BorderSide(color: pal.main, width: 6))),
+                      decoration: BoxDecoration(
+                          border: Border(
+                              right: BorderSide(color: pal.main, width: 6))),
                       child: ListTile(
-                        title: Text(item.student.name, style: const TextStyle(fontWeight: FontWeight.w800)),
-                        subtitle: Text('${item.circle.name} • ⭐ ${item.student.points} نقطة'),
-                        trailing: Icon(Icons.arrow_forward_ios, size: 16, color: pal.main),
+                        title: Text(item.student.name,
+                            style: const TextStyle(fontWeight: FontWeight.w800)),
+                        subtitle: Text(
+                            '${item.circle.name} • ⭐ ${item.student.points} نقطة'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.push_pin,
+                                  size: 18, color: kGoldDark),
+                              tooltip: 'إلغاء التثبيت',
+                              onPressed: () => appStore.togglePin(
+                                  item.circle.id, item.student.id),
+                            ),
+                            Icon(Icons.arrow_forward_ios,
+                                size: 16, color: pal.main),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -2865,7 +4908,7 @@ class PinnedStudentsScreen extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// 7. Student Search Screen
+// 7. Student Search Screen (Passwordless Name Search + Pinning)
 // ---------------------------------------------------------------------------
 class StudentSearchScreen extends StatefulWidget {
   const StudentSearchScreen({super.key});
@@ -2877,6 +4920,12 @@ class _StudentSearchScreenState extends State<StudentSearchScreen> {
   final _searchCtrl = TextEditingController();
 
   @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: appStore,
@@ -2886,15 +4935,21 @@ class _StudentSearchScreenState extends State<StudentSearchScreen> {
         if (q.isNotEmpty) {
           for (final c in appStore.circles) {
             for (final s in c.students) {
-              if (normalizeArabic(s.name).contains(q) || normalizeArabic(c.name).contains(q)) {
+              if (normalizeArabic(s.name).contains(q) ||
+                  normalizeArabic(c.name).contains(q)) {
                 matches.add((circle: c, student: s));
               }
             }
           }
+          matches.sort((a, b) => normalizeArabic(a.student.name)
+              .compareTo(normalizeArabic(b.student.name)));
         }
 
         return Scaffold(
-          appBar: AppBar(title: const Text('البحث عن طالب'), backgroundColor: kBlueDark, foregroundColor: Colors.white),
+          appBar: AppBar(
+              title: const Text('البحث عن طالب'),
+              backgroundColor: kBlueDark,
+              foregroundColor: Colors.white),
           body: Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
@@ -2905,7 +4960,8 @@ class _StudentSearchScreenState extends State<StudentSearchScreen> {
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.search),
                     hintText: 'اكتب اسم الطالب أو الطالبة...',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16)),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -2916,11 +4972,16 @@ class _StudentSearchScreenState extends State<StudentSearchScreen> {
                             if (appStore.recentSearches.isNotEmpty)
                               const Padding(
                                 padding: EdgeInsets.only(bottom: 8),
-                                child: Text('🕒 عمليات البحث الأخيرة', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                                child: Text('🕒 عمليات البحث الأخيرة',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.grey)),
                               ),
                             ...appStore.recentSearches.map((r) => Card(
                                   child: ListTile(
-                                    title: Text(r['studentName'] ?? '', style: const TextStyle(fontWeight: FontWeight.w800)),
+                                    title: Text(r['studentName'] ?? '',
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w800)),
                                     subtitle: Text(r['circleName'] ?? ''),
                                     onTap: () => Navigator.push(
                                       context,
@@ -2936,36 +4997,61 @@ class _StudentSearchScreenState extends State<StudentSearchScreen> {
                                 )),
                           ],
                         )
-                      : ListView.builder(
-                          itemCount: matches.length,
-                          itemBuilder: (_, i) {
-                            final item = matches[i];
-                            final pinned = appStore.isPinned(item.circle.id, item.student.id);
-                            return Card(
-                              child: ListTile(
-                                title: Text(item.student.name, style: const TextStyle(fontWeight: FontWeight.w800)),
-                                subtitle: Text(item.circle.name),
-                                trailing: IconButton(
-                                  icon: Icon(pinned ? Icons.push_pin : Icons.push_pin_outlined, color: pinned ? kGoldDark : Colors.grey),
-                                  onPressed: () => appStore.togglePin(item.circle.id, item.student.id),
-                                ),
-                                onTap: () {
-                                  appStore.addRecent(item.circle.id, item.student.id, item.student.name, item.circle.name, item.circle.gender);
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => StudentProfileScreen(
-                                        circleId: item.circle.id,
-                                        studentId: item.student.id,
-                                        readOnly: true,
-                                      ),
+                      : matches.isEmpty
+                          ? const Center(
+                              child: Text('لا توجد نتائج مطابقة',
+                                  style: TextStyle(color: Colors.grey)))
+                          : ListView.builder(
+                              itemCount: matches.length,
+                              itemBuilder: (_, i) {
+                                final item = matches[i];
+                                final pal =
+                                    CirclePalette.forGender(item.circle.gender);
+                                final pinned = appStore.isPinned(
+                                    item.circle.id, item.student.id);
+                                return Card(
+                                  child: ListTile(
+                                    leading: CircleAvatar(
+                                      backgroundColor: pal.soft,
+                                      child: Icon(Icons.person,
+                                          color: pal.main, size: 20),
                                     ),
-                                  );
-                                },
-                              ),
-                            );
-                          },
-                        ),
+                                    title: Text(item.student.name,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w800)),
+                                    subtitle: Text(item.circle.name),
+                                    trailing: IconButton(
+                                      icon: Icon(
+                                          pinned
+                                              ? Icons.push_pin
+                                              : Icons.push_pin_outlined,
+                                          color:
+                                              pinned ? kGoldDark : Colors.grey),
+                                      onPressed: () => appStore.togglePin(
+                                          item.circle.id, item.student.id),
+                                    ),
+                                    onTap: () {
+                                      appStore.addRecent(
+                                          item.circle.id,
+                                          item.student.id,
+                                          item.student.name,
+                                          item.circle.name,
+                                          item.circle.gender);
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => StudentProfileScreen(
+                                            circleId: item.circle.id,
+                                            studentId: item.student.id,
+                                            readOnly: true,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
                 ),
               ],
             ),
@@ -2977,7 +5063,10 @@ class _StudentSearchScreenState extends State<StudentSearchScreen> {
 }
 
 // ---------------------------------------------------------------------------
-// 8. Student Profile Screen (2 Tabs in Student Mode | 15 Days + Add Day)
+// 8. Student Profile Screen
+//    - 2 Tabs in Student/Parent Mode: متابعة الطالب | رصيد النقاط وكشف الحساب (NO Market)
+//    - 12 Days Default (+ Add Day up to 30)
+//    - Direct Scannable Recitation Rows (حفظ جديد Blue / مراجعة Gold) + 114-Surah Picker
 // ---------------------------------------------------------------------------
 class StudentProfileScreen extends StatefulWidget {
   final String circleId;
@@ -2997,83 +5086,70 @@ class StudentProfileScreen extends StatefulWidget {
 
 class _StudentProfileScreenState extends State<StudentProfileScreen> {
   String? _selectedMonthKey;
-  int _studentTab = 0; // 0: Tracking, 1: Points Market (readOnly mode only)
+  int _studentTab = 0; // 0: Tracking, 1: Points Balance & Statement
 
-  void _openTasmiDialog(CircleModel c, MonthRecord rec, int day, bool locked) {
+  Future<void> _openTasmiDialog(
+      CircleModel c, MonthRecord rec, int day, bool locked) async {
     final existing = rec.tasmi['$day'];
     if (locked) {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: Text('التسميع — اليوم $day'),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text('التسميع — اليوم $day',
+              style: const TextStyle(fontWeight: FontWeight.w800)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(existing?.text.isNotEmpty == true ? existing!.text : 'لم يُسجل تسميع في هذا اليوم', style: const TextStyle(fontWeight: FontWeight.bold)),
-              if (existing?.text.isNotEmpty == true) ...[
+              if (existing != null && existing.text.isNotEmpty) ...[
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: existing.isReview ? kGoldDark : kBlueMain,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(existing.typeLabel,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800)),
+                ),
+                const SizedBox(height: 10),
+                Text(existing.text,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 15)),
                 const SizedBox(height: 8),
-                Text('التقييم: ${existing!.grade}'),
-              ],
+                Text('التقييم: ${existing.grade}',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              ] else
+                const Text('لم يُسجل تسميع في هذا اليوم'),
               if (existing?.note.isNotEmpty == true) ...[
                 const SizedBox(height: 8),
                 Text('💬 ملاحظة لولي الأمر: ${existing!.note}'),
               ],
             ],
           ),
-          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق'))],
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('إغلاق'))
+          ],
         ),
       );
       return;
     }
 
-    final textC = TextEditingController(text: existing?.text ?? '');
-    final noteC = TextEditingController(text: existing?.note ?? '');
-    String grade = existing?.grade ?? 'ممتاز';
-
-    showDialog(
+    final res = await showTasmiEditorSheet(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          title: Text('تسجيل التسميع — اليوم $day'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(controller: textC, decoration: const InputDecoration(labelText: 'السورة / الآيات')),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  value: kGrades.contains(grade) ? grade : 'ممتاز',
-                  items: kGrades.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
-                  onChanged: (v) => setS(() => grade = v ?? 'ممتاز'),
-                ),
-                TextField(controller: noteC, maxLines: 2, decoration: const InputDecoration(labelText: 'ملاحظة لولي الأمر')),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                rec.tasmi['$day'] = null;
-                appStore.saveCircle(c.id);
-                Navigator.pop(ctx);
-              },
-              child: const Text('مسح', style: TextStyle(color: kRed)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                rec.tasmi['$day'] = textC.text.trim().isEmpty
-                    ? null
-                    : TasmiEntry(text: textC.text.trim(), grade: grade, note: noteC.text.trim());
-                appStore.saveCircle(c.id);
-                Navigator.pop(ctx);
-              },
-              child: const Text('حفظ'),
-            ),
-          ],
-        ),
-      ),
+      title: 'تسجيل التسميع — اليوم $day',
+      initial: existing,
     );
+    if (res == null) return;
+    rec.tasmi['$day'] = res.cleared ? null : res.entry;
+    appStore.saveCircle(c.id);
   }
 
   @override
@@ -3083,19 +5159,24 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       builder: (context, _) {
         final c = appStore.getCircle(widget.circleId);
         final s = appStore.getStudent(c, widget.studentId);
-        if (c == null || s == null) return const Scaffold(body: Center(child: Text('السجل غير موجود')));
+        if (c == null || s == null) {
+          return const Scaffold(body: Center(child: Text('السجل غير موجود')));
+        }
         final pal = CirclePalette.forGender(c.gender);
 
         final mKeys = s.months.keys.toList()..sort((a, b) => b.compareTo(a));
-        final curKey = (_selectedMonthKey != null && s.months.containsKey(_selectedMonthKey))
-            ? _selectedMonthKey!
-            : s.activeMonthKey;
+        final curKey =
+            (_selectedMonthKey != null && s.months.containsKey(_selectedMonthKey))
+                ? _selectedMonthKey!
+                : s.activeMonthKey;
         final rec = s.months[curKey] ?? s.months[mKeys.first]!;
         final curIdx = mKeys.indexOf(rec.key);
-        final prevRec = (curIdx >= 0 && curIdx + 1 < mKeys.length) ? s.months[mKeys[curIdx + 1]] : null;
+        final prevRec = (curIdx >= 0 && curIdx + 1 < mKeys.length)
+            ? s.months[mKeys[curIdx + 1]]
+            : null;
         final an = AiAnalysis.compute(rec, prevRec);
         final canEdit = !widget.readOnly && !rec.archived;
-        final daysCount = rec.daysCount.clamp(15, 30);
+        final daysCount = rec.daysCount.clamp(kDefaultDaysCount, kMaxDaysCount);
         final pinned = appStore.isPinned(c.id, s.id);
 
         return Scaffold(
@@ -3107,8 +5188,11 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
               if (widget.readOnly)
                 TextButton.icon(
                   onPressed: () => appStore.togglePin(c.id, s.id),
-                  icon: Icon(pinned ? Icons.push_pin : Icons.push_pin_outlined, color: Colors.white),
-                  label: Text(pinned ? 'مثبّت' : 'تثبيت', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  icon: Icon(pinned ? Icons.push_pin : Icons.push_pin_outlined,
+                      color: Colors.white),
+                  label: Text(pinned ? 'مثبّت' : 'تثبيت',
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
             ],
           ),
@@ -3118,19 +5202,23 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
               if (widget.readOnly) ...[
                 SegmentedButton<int>(
                   segments: [
-                    ButtonSegment(value: 0, label: Text('متابعة ${pal.studentWord}')),
-                    ButtonSegment(value: 1, label: Text('⭐ سوق النقاط (${s.points})')),
+                    ButtonSegment(
+                        value: 0, label: Text('متابعة ${pal.studentWord}')),
+                    ButtonSegment(
+                        value: 1,
+                        label: Text('⭐ رصيد النقاط (${s.points})')),
                   ],
                   selected: {_studentTab},
-                  onSelectionChanged: (v) => setState(() => _studentTab = v.first),
+                  onSelectionChanged: (v) =>
+                      setState(() => _studentTab = v.first),
                 ),
                 const SizedBox(height: 14),
               ],
-
               if (widget.readOnly && _studentTab == 1)
-                ..._buildMarketTab(c, s, pal)
+                ..._buildPointsStatementTab(s)
               else
-                ..._buildTrackingTab(c, s, pal, mKeys, rec, an, canEdit, daysCount),
+                ..._buildTrackingTab(
+                    c, s, pal, mKeys, rec, an, canEdit, daysCount),
             ],
           ),
         );
@@ -3138,100 +5226,75 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     );
   }
 
-  List<Widget> _buildMarketTab(CircleModel c, StudentModel s, CirclePalette pal) {
+  // Student Points Tab: Balance + Statement ONLY (NO Rewards Market)
+  List<Widget> _buildPointsStatementTab(StudentModel s) {
     return [
       Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [Color(0xFFC7A87D), kGold, kGoldDark]),
+          gradient:
+              const LinearGradient(colors: [Color(0xFFC7A87D), kGold, kGoldDark]),
           borderRadius: BorderRadius.circular(24),
         ),
         child: Column(
           children: [
-            const Text('رصيد النقاط الحالي', style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const Text('رصيد النقاط الحالي',
+                style: TextStyle(color: Colors.white70, fontSize: 13)),
             const SizedBox(height: 4),
-            Text('⭐ ${s.points} نقطة', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800)),
+            Text('⭐ ${s.points} نقطة',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800)),
           ],
         ),
       ),
       const SizedBox(height: 16),
-      const Text('🛍️ جوائز سوق النقاط', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+      const Text('📜 كشف حساب النقاط',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
       const SizedBox(height: 8),
-      ...appStore.marketItems.map((it) {
-        final out = !it.unlimited && it.stock <= 0;
-        final enough = s.points >= it.cost;
-        return Card(
-          margin: const EdgeInsets.only(bottom: 10),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(child: Text(it.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
-                    Chip(label: Text('${it.cost} نقطة', style: const TextStyle(fontWeight: FontWeight.bold))),
-                  ],
-                ),
-                Text(
-                  '${it.type} • ${it.unlimited ? '∞ كمية غير محدودة' : (out ? 'نفذت الكمية' : 'متبقي ${it.stock}')}',
-                  style: TextStyle(color: out ? kRed : Colors.grey, fontSize: 12),
-                ),
-                const SizedBox(height: 10),
-                if (out)
-                  const Text('نفذت الكمية', style: TextStyle(color: kRed, fontWeight: FontWeight.bold))
-                else if (enough)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: kGreen, foregroundColor: Colors.white),
-                      onPressed: () {
-                        s.points -= it.cost;
-                        if (!it.unlimited) it.stock = (it.stock - 1).clamp(0, 999999);
-                        s.pointsHistory.insert(0, PointsLogEntry(id: genId('ph'), delta: -it.cost, reason: 'طلب جائزة: ${it.name}', date: todayIso()));
-                        appStore.rewardRequests.insert(
-                          0,
-                          RewardRequestModel(
-                            id: genId('req'),
-                            studentId: s.id,
-                            studentName: s.name,
-                            circleId: c.id,
-                            circleName: c.name,
-                            itemId: it.id,
-                            itemName: it.name,
-                            cost: it.cost,
-                            status: 'pending',
-                            date: todayIso(),
-                          ),
-                        );
-                        appStore.saveMetaAndCircles([c.id]);
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال طلب الجائزة للإدارة بنجاح 🎁')));
-                      },
-                      child: const Text('🎁 طلب الجائزة الآن'),
-                    ),
-                  )
-                else
-                  Text('متبقي ${it.cost - s.points} نقطة لطلب هذه الجائزة', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              ],
+      if (s.pointsHistory.isEmpty)
+        Card(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          child: const Padding(
+            padding: EdgeInsets.all(20),
+            child: Text(
+              'لا توجد حركات نقاط مسجّلة في كشف الحساب بعد.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, fontSize: 13),
             ),
           ),
-        );
-      }),
-      const SizedBox(height: 12),
-      const Text('📜 كشف حساب النقاط', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-      const SizedBox(height: 8),
-      ...s.pointsHistory.map((h) => Card(
-            margin: const EdgeInsets.only(bottom: 6),
-            child: ListTile(
-              title: Text(h.reason, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-              subtitle: Text(h.date, style: const TextStyle(fontSize: 11)),
-              trailing: Text(
-                '${h.delta >= 0 ? '+' : ''}${h.delta}',
-                style: TextStyle(fontWeight: FontWeight.w800, color: h.delta >= 0 ? kGreen : kAmber),
+        )
+      else
+        ...s.pointsHistory.map((h) => Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: h.delta >= 0
+                      ? kGreen.withValues(alpha: 0.14)
+                      : kRed.withValues(alpha: 0.14),
+                  child: Icon(
+                    h.delta >= 0 ? Icons.add_circle : Icons.remove_circle,
+                    color: h.delta >= 0 ? kGreen : kRed,
+                    size: 20,
+                  ),
+                ),
+                title: Text(h.reason,
+                    style: const TextStyle(
+                        fontSize: 13.5, fontWeight: FontWeight.w800)),
+                subtitle: Text(h.date, style: const TextStyle(fontSize: 11.5)),
+                trailing: Text(
+                  '${h.delta >= 0 ? '+' : ''}${h.delta}',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                      color: h.delta >= 0 ? kGreen : kRed),
+                ),
               ),
-            ),
-          )),
+            )),
     ];
   }
 
@@ -3246,7 +5309,22 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     int daysCount,
   ) {
     return [
-      // Month selector
+      if (c.announcement.trim().isNotEmpty) ...[
+        Card(
+          margin: const EdgeInsets.only(bottom: 10),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: ListTile(
+            leading: const Text('📢', style: TextStyle(fontSize: 18)),
+            title: Text('إعلان ${c.name}',
+                style:
+                    const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+            subtitle: Text(c.announcement, style: const TextStyle(fontSize: 12)),
+          ),
+        ),
+      ],
+
+      // Month selector + Archive button
       Row(
         children: [
           Expanded(
@@ -3255,7 +5333,8 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
               items: mKeys
                   .map((k) => DropdownMenuItem(
                         value: k,
-                        child: Text('${s.months[k]!.label}${s.months[k]!.archived ? ' (مؤرشف)' : ''}'),
+                        child: Text(
+                            '${s.months[k]!.label}${s.months[k]!.archived ? ' (مؤرشف)' : ''}'),
                       ))
                   .toList(),
               onChanged: (v) => setState(() => _selectedMonthKey = v),
@@ -3264,16 +5343,41 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           if (!widget.readOnly) ...[
             const SizedBox(width: 8),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: pal.accentDark,
+                  foregroundColor: Colors.white),
               onPressed: () {
-                final nextM = rec.month == 12 ? 1 : rec.month + 1;
-                final nextY = rec.month == 12 ? rec.year + 1 : rec.year;
-                final nk = monthKey(nextY, nextM);
-                s.months.forEach((_, mr) => mr.archived = true);
-                s.months[nk] ??= MonthRecord.empty(nextY, nextM);
-                s.months[nk]!.archived = false;
-                s.activeMonthKey = nk;
-                _selectedMonthKey = nk;
-                appStore.saveCircle(c.id);
+                showDialog(
+                  context: context,
+                  builder: (dCtx) => AlertDialog(
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
+                    title: const Text('📦 أرشفة الشهر الحالي'),
+                    content: Text(
+                        'هل تريد أرشفة شهر "${rec.label}" وفتح شهر جديد بـ 12 يوماً؟\nسيُعتمد هذا الشهر في حساب نجوم الشهر.'),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(dCtx),
+                          child: const Text('إلغاء')),
+                      ElevatedButton(
+                        onPressed: () {
+                          final nextM = rec.month == 12 ? 1 : rec.month + 1;
+                          final nextY =
+                              rec.month == 12 ? rec.year + 1 : rec.year;
+                          final nk = monthKey(nextY, nextM);
+                          s.months.forEach((_, mr) => mr.archived = true);
+                          s.months[nk] ??= MonthRecord.empty(nextY, nextM);
+                          s.months[nk]!.archived = false;
+                          s.activeMonthKey = nk;
+                          _selectedMonthKey = nk;
+                          appStore.saveCircle(c.id);
+                          Navigator.pop(dCtx);
+                        },
+                        child: const Text('تأكيد الأرشفة'),
+                      ),
+                    ],
+                  ),
+                );
               },
               child: const Text('📦 أرشفة'),
             ),
@@ -3282,7 +5386,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       ),
       const SizedBox(height: 12),
 
-      // Juz Progress Bar
+      // Juz Progress Bar (0..30)
       Card(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         child: Padding(
@@ -3293,7 +5397,8 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('📗 الحفظ: ${s.juzCount} / 30 جزءاً', style: const TextStyle(fontWeight: FontWeight.w800)),
+                  Text('📗 الحفظ: ${s.juzCount} / 30 جزءاً',
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
                   if (!widget.readOnly)
                     Row(
                       children: [
@@ -3315,7 +5420,11 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                     ),
                 ],
               ),
-              LinearProgressIndicator(value: s.juzCount / 30, minHeight: 10, borderRadius: BorderRadius.circular(8), color: pal.main),
+              LinearProgressIndicator(
+                  value: s.juzCount / 30,
+                  minHeight: 10,
+                  borderRadius: BorderRadius.circular(8),
+                  color: pal.main),
             ],
           ),
         ),
@@ -3323,20 +5432,25 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       const SizedBox(height: 10),
 
       // Badges
-      if (an.badges.isNotEmpty)
+      if (an.badges.isNotEmpty) ...[
         Wrap(
           spacing: 8,
           runSpacing: 6,
           children: an.badges
               .map((b) => Chip(
                     backgroundColor: b.color,
-                    label: Text('${b.icon} ${b.title}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                    label: Text('${b.icon} ${b.title}',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12)),
                   ))
               .toList(),
         ),
-      const SizedBox(height: 10),
+        const SizedBox(height: 10),
+      ],
 
-      // Attendance Grid (15 Days Default + Add Day up to 30)
+      // Attendance Grid (12 Days Default + Add Day up to 30)
       Card(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         child: Padding(
@@ -3347,46 +5461,77 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('📅 الحضور والغياب ($daysCount يوماً)', style: const TextStyle(fontWeight: FontWeight.w800)),
-                  Text('${an.attendanceRate}%', style: TextStyle(fontWeight: FontWeight.w800, color: pal.main)),
+                  Text('📅 الحضور والغياب ($daysCount يوماً)',
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                  Text('${an.attendanceRate}%',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800, color: pal.main)),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Row(
+                children: [
+                  _LegendDot(color: kGreen, label: 'حاضر'),
+                  SizedBox(width: 12),
+                  _LegendDot(color: kAmber, label: 'بعذر'),
+                  SizedBox(width: 12),
+                  _LegendDot(color: kRed, label: 'غائب'),
                 ],
               ),
               const SizedBox(height: 10),
               GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 5, crossAxisSpacing: 8, mainAxisSpacing: 8),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 6,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8),
                 itemCount: daysCount,
                 itemBuilder: (_, idx) {
                   final d = idx + 1;
                   final v = rec.attendance['$d'] ?? 'none';
                   final bg = v == 'present'
                       ? kGreen
-                      : (v == 'excused' ? kAmber : (v == 'absent' ? kRed : Theme.of(context).scaffoldBackgroundColor));
+                      : (v == 'excused'
+                          ? kAmber
+                          : (v == 'absent'
+                              ? kRed
+                              : Theme.of(context).scaffoldBackgroundColor));
                   final fg = v == 'none' ? Colors.grey : Colors.white;
                   return InkWell(
                     borderRadius: BorderRadius.circular(12),
                     onTap: !canEdit
                         ? null
                         : () {
-                            const order = ['none', 'present', 'excused', 'absent'];
-                            rec.attendance['$d'] = order[(order.indexOf(v) + 1) % order.length];
+                            const order = [
+                              'none',
+                              'present',
+                              'excused',
+                              'absent'
+                            ];
+                            rec.attendance['$d'] =
+                                order[(order.indexOf(v) + 1) % order.length];
                             appStore.saveCircle(c.id);
                           },
                     child: Container(
-                      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
-                      child: Center(child: Text('$d', style: TextStyle(color: fg, fontWeight: FontWeight.w800))),
+                      decoration: BoxDecoration(
+                          color: bg, borderRadius: BorderRadius.circular(12)),
+                      child: Center(
+                          child: Text('$d',
+                              style: TextStyle(
+                                  color: fg, fontWeight: FontWeight.w800))),
                     ),
                   );
                 },
               ),
-              if (canEdit && daysCount < 30) ...[
+              if (canEdit && daysCount < kMaxDaysCount) ...[
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton(
                     onPressed: () {
-                      rec.daysCount = (daysCount + 1).clamp(15, 30);
+                      rec.daysCount =
+                          (daysCount + 1).clamp(kDefaultDaysCount, kMaxDaysCount);
                       appStore.saveCircle(c.id);
                     },
                     child: Text('➕ إضافة يوم (${daysCount + 1})'),
@@ -3399,7 +5544,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       ),
       const SizedBox(height: 10),
 
-      // Recitation Grid
+      // Upgraded Recitation Card: Clear Directly Readable Rows (حفظ جديد Blue / مراجعة Gold)
       Card(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         child: Padding(
@@ -3407,38 +5552,182 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('📖 التسميع اليومي ($daysCount خانة)', style: const TextStyle(fontWeight: FontWeight.w800)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('📖 سجل التسميع اليومي ($daysCount يوماً)',
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                  Text('${an.tasmiCount} منجز',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          color: pal.main)),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Row(
+                children: [
+                  _LegendDot(color: kBlueMain, label: 'حفظ جديد'),
+                  SizedBox(width: 14),
+                  _LegendDot(color: kGoldDark, label: 'مراجعة'),
+                ],
+              ),
               const SizedBox(height: 10),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 5, crossAxisSpacing: 8, mainAxisSpacing: 8, childAspectRatio: 0.9),
-                itemCount: daysCount,
-                itemBuilder: (_, idx) {
-                  final d = idx + 1;
-                  final t = rec.tasmi['$d'];
-                  final has = t != null && t.text.isNotEmpty;
-                  return InkWell(
-                    borderRadius: BorderRadius.circular(12),
+              ...List.generate(daysCount, (idx) {
+                final d = idx + 1;
+                final t = rec.tasmi['$d'];
+                final has = t != null && t.text.trim().isNotEmpty;
+                final isRev = has && t.isReview;
+                final typeColor = isRev ? kGoldDark : kBlueMain;
+                final rowBg = has
+                    ? (isRev
+                        ? kGold.withValues(alpha: 0.11)
+                        : kBlueMain.withValues(alpha: 0.09))
+                    : Theme.of(context).scaffoldBackgroundColor;
+
+                return Padding(
+                  padding: EdgeInsets.only(bottom: idx < daysCount - 1 ? 8 : 0),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
                     onTap: () => _openTasmiDialog(c, rec, d, !canEdit),
                     child: Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 10),
                       decoration: BoxDecoration(
-                        color: has ? pal.soft : Theme.of(context).scaffoldBackgroundColor,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: has ? pal.main : Colors.grey.withValues(alpha: 0.2)),
+                        color: rowBg,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: has
+                              ? typeColor.withValues(alpha: 0.45)
+                              : Colors.grey.withValues(alpha: 0.2),
+                        ),
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('$d', style: TextStyle(fontWeight: FontWeight.w800, color: has ? pal.deep : Colors.grey)),
-                          Text(has ? t.grade : '—', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, color: has ? pal.deep : Colors.grey)),
+                          Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: has
+                                  ? typeColor
+                                  : Colors.grey.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Center(
+                              child: Text(
+                                '$d',
+                                style: TextStyle(
+                                  color: has ? Colors.white : Colors.grey,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: has
+                                ? Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 7, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: typeColor,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              t.typeLabel,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 10.5,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 7, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(context)
+                                                  .cardColor,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              t.grade,
+                                              style: TextStyle(
+                                                color: typeColor,
+                                                fontSize: 10.5,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Text(
+                                        t.text,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13.5,
+                                        ),
+                                      ),
+                                      if (t.note.trim().isNotEmpty) ...[
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          '💬 ${t.note}',
+                                          style: const TextStyle(
+                                            fontSize: 11.5,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  )
+                                : Padding(
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 7),
+                                    child: Text(
+                                      canEdit
+                                          ? 'لم يُسجل بعد — اضغط لإضافة التسميع'
+                                          : 'لم يُسجل تسميع في هذا اليوم',
+                                      style: const TextStyle(
+                                          fontSize: 12, color: Colors.grey),
+                                    ),
+                                  ),
+                          ),
+                          if (canEdit)
+                            Icon(Icons.edit_note,
+                                size: 20,
+                                color: has ? typeColor : Colors.grey),
                         ],
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              }),
+              if (canEdit && daysCount < kMaxDaysCount) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      rec.daysCount =
+                          (daysCount + 1).clamp(kDefaultDaysCount, kMaxDaysCount);
+                      appStore.saveCircle(c.id);
+                    },
+                    child: Text('➕ إضافة يوم (${daysCount + 1})'),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -3456,8 +5745,15 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('✨ التحليل الذكي للأداء', style: TextStyle(fontWeight: FontWeight.w800)),
-                  Chip(backgroundColor: an.badgeBg, label: Text(an.level, style: TextStyle(color: an.badgeText, fontSize: 11, fontWeight: FontWeight.bold))),
+                  const Text('✨ التحليل الذكي للأداء',
+                      style: TextStyle(fontWeight: FontWeight.w800)),
+                  Chip(
+                      backgroundColor: an.badgeBg,
+                      label: Text(an.level,
+                          style: TextStyle(
+                              color: an.badgeText,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold))),
                 ],
               ),
               ...an.insights.map((ins) => Padding(
@@ -3468,13 +5764,16 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: pal.main, foregroundColor: Colors.white),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: pal.main, foregroundColor: Colors.white),
                   icon: const Icon(Icons.copy, size: 18),
                   label: const Text('نسخ التقرير الشهري'),
                   onPressed: () {
-                    final report = '📘 جمعية خير أمة\n${pal.studentWord}: ${s.name}\nالحلقة: ${c.name}\nالشهر: ${rec.label}\nالأجزاء: ${s.juzCount}/30\nالحضور: ${an.present} | بعذر: ${an.excused} | غياب: ${an.absent} (${an.attendanceRate}%)\nالتسميع: ${an.tasmiCount} | التقييم: ${an.overallScore}% (${an.level})';
+                    final report =
+                        '📘 جمعية خير أمة\n${pal.studentWord}: ${s.name}\nالحلقة: ${c.name}\nالشهر: ${rec.label}\nالأجزاء: ${s.juzCount}/30\nالحضور: ${an.present} | بعذر: ${an.excused} | غياب: ${an.absent} (${an.attendanceRate}%)\nالتسميع: ${an.tasmiCount} | التقييم: ${an.overallScore}% (${an.level})';
                     Clipboard.setData(ClipboardData(text: report));
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ التقرير الشهري')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('تم نسخ التقرير الشهري')));
                   },
                 ),
               ),
@@ -3483,5 +5782,27 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         ),
       ),
     ];
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  final Color color;
+  final String label;
+  const _LegendDot({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+      ],
+    );
   }
 }
